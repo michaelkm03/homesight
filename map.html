@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beacon</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --header-h: 58px;
+      --panel-w:  420px;
+      --bg:       #f4f5f7;
+      --surface:  #ffffff;
+      --border:   #e4e7ec;
+      --text:     #0d1117;
+      --muted:    #6b7280;
+      --green:    #6ee7b7;
+      --green-dk: #059669;
+      --red:      #fb7185;
+    }
+
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow: hidden; }
+
+    /* ── Header — dark bar with punchy brand ── */
+    #header {
+      position: fixed; top: 0; left: 0; right: 0; height: var(--header-h);
+      background: #0d1117; z-index: 1000;
+      display: flex; align-items: center; padding: 0 1.5rem; gap: 1.25rem;
+    }
+    #header h1 {
+      font-size: 1.25rem; font-weight: 900; color: white;
+      letter-spacing: 0.22em; text-transform: uppercase; white-space: nowrap;
+    }
+    #header h1 span { color: var(--green); }
+
+
+#rankings-btn {
+      padding: 7px 16px;
+      background: rgba(110,231,183,0.06); border: 1px solid rgba(110,231,183,0.28);
+      border-radius: 3px; color: rgba(110,231,183,0.75); font-size: 0.78rem; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      cursor: pointer; white-space: nowrap; transition: all 0.15s;
+    }
+    #rankings-btn:hover { border-color: rgba(110,231,183,0.6); color: var(--green); background: rgba(110,231,183,0.10); }
+    #rankings-btn.active { background: rgba(110,231,183,0.18); border-color: var(--green); color: var(--green); }
+
+    #search-wrap { position: relative; margin-left: auto; }
+    #zip-input {
+      width: 210px; padding: 7px 34px 7px 12px;
+      background: rgba(110,231,183,0.06); border: 1px solid rgba(110,231,183,0.28);
+      border-radius: 3px; color: white; font-size: 0.78rem;
+      font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      outline: none; transition: all 0.15s;
+    }
+    #zip-input::placeholder { color: rgba(110,231,183,0.4); letter-spacing: 0.12em; }
+    #zip-input:focus { border-color: var(--green); background: rgba(110,231,183,0.10); outline: none; }
+    #zip-go {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: rgba(110,231,183,0.5); cursor: pointer; font-size: 1rem;
+    }
+    #zip-go:hover { color: var(--green); }
+
+    #loading-bar {
+      position: fixed; top: var(--header-h); left: 0; height: 3px;
+      background: var(--green); width: 0%; z-index: 999; transition: width 0.4s;
+      box-shadow: 0 0 8px rgba(110,231,183,0.5);
+    }
+
+    /* ── Map ── */
+    #map {
+      position: fixed; top: var(--header-h); left: 0; right: 0; bottom: 0;
+      transition: right 0.3s ease;
+    }
+    #map.panel-open { right: var(--panel-w); }
+
+    /* ── Legend ── */
+    #legend {
+      position: fixed; bottom: 24px; left: 14px; z-index: 900;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px; font-size: 0.71rem; color: var(--text);
+      box-shadow: 0 2px 16px rgba(0,0,0,0.1); min-width: 180px;
+    }
+    #legend-select {
+      width: 100%; margin-bottom: 12px;
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 5px;
+      padding: 6px 8px; font-size: 0.75rem; font-weight: 600;
+      cursor: pointer; outline: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 8px center;
+      padding-right: 24px;
+    }
+    #legend-select:focus { border-color: var(--green); }
+    .legend-row { display: flex; align-items: center; gap: 9px; margin-bottom: 5px; }
+    .legend-swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+    .legend-label { font-size: 0.72rem; color: var(--text); }
+    #legend-sources {
+      margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border);
+      font-size: 0.62rem; color: var(--muted); line-height: 1.6;
+    }
+    #legend-sources a { color: var(--muted); text-decoration: none; }
+    #legend-sources a:hover { color: var(--green-dk); text-decoration: underline; }
+
+    /* ── Stats overlay ── */
+    #stats-overlay {
+      position: fixed; top: calc(var(--header-h) + 12px); left: 14px;
+      z-index: 900; display: flex; gap: 6px;
+    }
+    .stat-pill {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 5px; padding: 5px 11px; font-size: 0.7rem; color: var(--muted);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .stat-pill strong { color: var(--green-dk); font-weight: 700; }
+
+    /* ── Tooltip ── */
+    #tooltip {
+      position: fixed; z-index: 950; pointer-events: none;
+      background: #0d1117; color: #f0f0f0; border-left: 3px solid var(--green);
+      border-radius: 6px; padding: 10px 14px; font-size: 0.8rem; line-height: 1.65;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.28); display: none; max-width: 220px;
+    }
+    #tooltip .tt-zip   { font-weight: 800; font-size: 0.9rem; color: white; }
+    #tooltip .tt-city  { color: rgba(240,240,240,0.5); font-size: 0.74rem; }
+    #tooltip .tt-value { font-size: 1.05rem; font-weight: 700; margin-top: 4px; color: white; }
+    #tooltip .tt-yoy   { font-size: 0.74rem; margin-top: 2px; }
+    #tooltip .tt-hint  { font-size: 0.67rem; color: #444; margin-top: 6px; }
+
+    /* ── Panel ── */
+    #panel {
+      position: fixed; top: var(--header-h); right: calc(-1 * var(--panel-w));
+      width: var(--panel-w); bottom: 0; z-index: 800;
+      background: var(--surface); display: flex; flex-direction: column;
+      border-left: 1px solid var(--border); transition: right 0.3s ease;
+      box-shadow: -6px 0 28px rgba(0,0,0,0.1);
+    }
+    #panel.open { right: 0; }
+
+    /* bold green top stripe on panel */
+    #panel-header {
+      padding: 18px 20px 14px; flex-shrink: 0; position: relative;
+      border-bottom: 1px solid var(--border);
+      border-top: 3px solid var(--green);
+    }
+    #panel-zip  { font-size: 1.6rem; font-weight: 900; color: var(--text); letter-spacing: -0.03em; }
+    #panel-loc  { font-size: 0.8rem; color: var(--muted); margin-top: 3px; }
+    #panel-close {
+      position: absolute; top: 16px; right: 18px;
+      background: none; border: none; color: var(--muted);
+      font-size: 1rem; cursor: pointer; transition: color 0.15s;
+    }
+    #panel-close:hover { color: var(--text); }
+
+    #invest-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 10px; padding: 5px 12px; border-radius: 4px;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .badge-strong   { background: rgba(110,231,183,0.18); color: var(--green); border: 1px solid rgba(110,231,183,0.35); }
+    .badge-moderate { background: rgba(251,191,36,0.15);  color: #b45309;    border: 1px solid rgba(251,191,36,0.35); }
+    .badge-caution  { background: rgba(251,113,133,0.15); color: #be123c;    border: 1px solid rgba(251,113,133,0.35); }
+
+    #panel-stats {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+      flex-shrink: 0; border-bottom: 1px solid var(--border);
+    }
+    .p-stat {
+      padding: 14px 18px; border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      border-left: 3px solid transparent; transition: border-left-color 0.15s;
+    }
+    .p-stat:hover { border-left-color: var(--green); }
+    .p-stat:nth-child(even) { border-right: none; }
+    .p-stat-label { font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+    .p-stat-value { font-size: 1.1rem; font-weight: 800; margin-top: 4px; color: var(--text); }
+    .p-stat-yoy   { font-size: 0.68rem; margin-top: 2px; font-weight: 700; }
+    .green { color: var(--green-dk); } .red { color: var(--red); }
+
+    #panel-charts { flex: 1; overflow-y: auto; padding: 12px 16px 20px; background: var(--bg); }
+    .chart-block  {
+      background: var(--surface); border-radius: 8px; margin-bottom: 8px;
+      border: 1px solid var(--border); overflow: hidden;
+      border-left: 3px solid transparent; transition: border-left-color 0.15s;
+    }
+    .chart-block.open { border-left-color: var(--accent, #3b82f6); }
+    .chart-toggle {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 14px; cursor: pointer; user-select: none;
+      transition: background 0.1s;
+    }
+    .chart-toggle:hover { background: var(--bg); }
+    .chart-label {
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--muted); flex: 1;
+    }
+    .chart-toggle:hover .chart-label { color: var(--text); }
+    .chart-latest {
+      font-size: 0.82rem; font-weight: 800; color: var(--text);
+      letter-spacing: -0.02em; flex-shrink: 0;
+    }
+    .chart-latest-yoy {
+      font-size: 0.64rem; font-weight: 700; flex-shrink: 0; margin-left: -4px;
+    }
+    .chart-arrow {
+      font-size: 0.6rem; color: var(--muted); transition: transform 0.2s; flex-shrink: 0;
+    }
+    .chart-block.open .chart-arrow { transform: rotate(180deg); }
+    .chart-body { display: none; padding: 0 12px 12px; }
+    .chart-block.open .chart-body { display: block; }
+
+    #map-msg {
+      position: fixed; bottom: 24px; right: 16px; z-index: 900;
+      background: #0d1117; color: rgba(255,255,255,0.5);
+      border-radius: 5px; padding: 7px 14px; font-size: 0.73rem;
+    }
+    #map-msg.error { background: #7f1d1d; color: #fca5a5; }
+
+    #loading-msg {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      z-index: 950; background: #0d1117; color: white;
+      padding: 16px 28px; border-radius: 6px; border-left: 3px solid var(--green);
+      font-size: 0.88rem; display: none;
+    }
+
+    /* ── Rankings panel ── */
+    #rankings-panel {
+      position: fixed; top: var(--header-h); right: calc(-1 * var(--panel-w));
+      width: var(--panel-w); bottom: 0; z-index: 800;
+      background: var(--surface); border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      transition: right 0.3s ease; box-shadow: -6px 0 28px rgba(0,0,0,0.1);
+    }
+    #rankings-panel.open { right: 0; }
+
+    #rankings-header {
+      padding: 16px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+      display: flex; flex-direction: column; gap: 10px; position: relative;
+      border-top: 3px solid var(--green);
+    }
+    #rankings-close {
+      position: absolute; top: 14px; right: 16px;
+      background: none; border: none; color: var(--muted);
+      font-size: 1rem; cursor: pointer; transition: color 0.15s;
+    }
+    #rankings-close:hover { color: var(--text); }
+    #rankings-title {
+      font-size: 0.72rem; font-weight: 800; color: var(--text);
+      text-transform: uppercase; letter-spacing: 0.12em;
+    }
+
+    #metro-input-wrap { position: relative; }
+    #metro-input {
+      width: 100%; padding: 8px 12px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 5px;
+      color: var(--text); font-size: 0.83rem; outline: none; transition: all 0.15s;
+    }
+    #metro-input::placeholder { color: var(--muted); }
+    #metro-input:focus { border-color: var(--green); box-shadow: 0 0 0 2px rgba(110,231,183,0.15); }
+    #metro-suggestions {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
+      background: var(--surface); border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 5px 5px; max-height: 180px; overflow-y: auto; display: none;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+    }
+    .metro-option {
+      padding: 8px 12px; font-size: 0.8rem; color: var(--text);
+      cursor: pointer; border-bottom: 1px solid var(--border);
+    }
+    .metro-option:hover { background: var(--bg); color: var(--green-dk); font-weight: 600; }
+
+    #rankings-controls { display: flex; gap: 8px; }
+    .rank-select {
+      flex: 1; background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 5px;
+      padding: 6px 8px; font-size: 0.76rem; cursor: pointer; outline: none;
+    }
+
+    #rankings-body-wrap { flex: 1; overflow-y: auto; padding: 0 14px 16px; }
+
+    #rankings-empty {
+      padding: 3rem 2rem; text-align: center; color: var(--muted); font-size: 0.83rem; line-height: 1.8;
+    }
+
+    #rankings-table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
+    #rankings-table thead th {
+      position: sticky; top: 0; background: var(--bg);
+      padding: 9px 10px; text-align: left; font-weight: 700;
+      color: var(--muted); text-transform: uppercase; font-size: 0.6rem;
+      letter-spacing: 0.07em; border-bottom: 2px solid var(--border); cursor: pointer;
+      box-shadow: 0 2px 0 var(--border);
+    }
+    #rankings-table thead th:hover { color: var(--text); }
+    #rankings-table thead th.sorted { color: var(--green-dk); }
+    #rankings-table tbody tr {
+      cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.1s;
+      border-left: 3px solid transparent;
+    }
+    #rankings-table tbody tr:hover { background: var(--bg); border-left-color: var(--green); }
+    #rankings-table tbody tr.active { background: var(--bg); border-left-color: var(--green); }
+    #rankings-table td { padding: 9px 10px; color: var(--text); }
+    .rank-num  { color: var(--muted); font-weight: 600; width: 28px; }
+    .rank-zip  { font-weight: 800; color: var(--text); }
+    .rank-city { color: var(--muted); font-size: 0.71rem; }
+    .rank-val  { font-weight: 700; }
+    .rank-pct  { font-weight: 800; }
+    .rank-pct.pos { color: var(--green-dk); }
+    .rank-pct.neg { color: var(--red); }
+    .rank-pct.na  { color: var(--muted); }
+
+    /* ── Panel hero ── */
+    #panel-hero {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      background: #0d1117; display: none;
+    }
+    #panel-hero-label { font-size: 0.6rem; font-weight: 700; color: rgba(255,255,255,0.35);
+      text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+    #panel-hero-value { font-size: 2.4rem; font-weight: 900; color: white;
+      letter-spacing: -0.04em; line-height: 1; }
+    #panel-hero-yoy { font-size: 0.82rem; font-weight: 700; margin-top: 6px; }
+    #panel-hero-yoy.green { color: var(--green); }
+    #panel-hero-yoy.red   { color: #f87171; }
+    #listing-links { display: none; gap: 8px; margin-top: 14px; }
+    .listing-link {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
+      padding: 9px 10px; border-radius: 5px; font-size: 0.72rem; font-weight: 800;
+      letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none;
+      transition: all 0.15s; box-shadow: 0 0 0 transparent;
+    }
+    .listing-link-zillow {
+      background: rgba(0,106,255,0.22); border: 1.5px solid rgba(0,106,255,0.6);
+      color: #93c5fd; box-shadow: 0 0 12px rgba(0,106,255,0.2), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .listing-link-zillow:hover {
+      background: rgba(0,106,255,0.38); border-color: rgba(0,106,255,0.9);
+      color: #fff; box-shadow: 0 0 20px rgba(0,106,255,0.5);
+      transform: translateY(-1px);
+    }
+    .listing-link-redfin {
+      background: rgba(220,38,38,0.22); border: 1.5px solid rgba(220,38,38,0.6);
+      color: #fca5a5; box-shadow: 0 0 12px rgba(220,38,38,0.2), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .listing-link-redfin:hover {
+      background: rgba(220,38,38,0.38); border-color: rgba(220,38,38,0.9);
+      color: #fff; box-shadow: 0 0 20px rgba(220,38,38,0.5);
+      transform: translateY(-1px);
+    }
+    .rank-links { opacity: 0; transition: opacity 0.12s; white-space: nowrap; }
+    #rankings-table tbody tr:hover .rank-links { opacity: 1; }
+    .rank-link {
+      font-size: 0.62rem; font-weight: 800; padding: 2px 5px; border-radius: 3px;
+      text-decoration: none; margin-left: 5px; letter-spacing: 0.04em;
+    }
+    .rank-link-z { background: rgba(0,106,255,0.12); color: #60a5fa; }
+    .rank-link-z:hover { background: rgba(0,106,255,0.25); }
+    .rank-link-r { background: rgba(220,38,38,0.12); color: #f87171; }
+    .rank-link-r:hover { background: rgba(220,38,38,0.25); }
+
+    /* ── Appreciation bars ── */
+    #appr-section {
+      grid-column: 1 / -1; padding: 14px 18px;
+      border-top: 1px solid var(--border);
+    }
+    #appr-section .p-stat-label { margin-bottom: 12px; display: block; }
+    .appr-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+    .appr-period { font-size: 0.65rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; width: 26px; flex-shrink: 0; }
+    .appr-track { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .appr-fill { height: 100%; border-radius: 3px; min-width: 2px; transition: width 0.5s ease; }
+    .appr-fill.pos { background: var(--green); }
+    .appr-fill.neg { background: var(--red); }
+    .appr-pct { font-size: 0.75rem; font-weight: 800; width: 54px;
+      text-align: right; flex-shrink: 0; }
+    .appr-pct.pos { color: var(--green-dk); }
+    .appr-pct.neg { color: var(--red); }
+
+    /* ── Landing popup ── */
+    #landing-overlay {
+      position: fixed; inset: 0; z-index: 3000;
+      background: rgba(13,17,23,0.82); backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #landing-overlay.hidden { display: none; }
+    #landing-modal {
+      background: #0d1117; border: 1px solid rgba(110,231,183,0.25);
+      border-top: 3px solid var(--green); border-radius: 10px;
+      padding: 36px 32px 28px; width: 420px; max-width: 90vw;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.55), 0 0 40px rgba(110,231,183,0.04);
+    }
+    #landing-brand {
+      font-size: 1.45rem; font-weight: 900; color: white;
+      letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 6px;
+    }
+    #landing-brand span { color: var(--green); }
+    #landing-sub {
+      font-size: 0.78rem; color: rgba(255,255,255,0.38); margin-bottom: 30px;
+      letter-spacing: 0.03em; line-height: 1.5;
+    }
+    #landing-label {
+      font-size: 0.63rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.12em; color: rgba(110,231,183,0.55); margin-bottom: 8px;
+    }
+    #landing-input-row { display: flex; gap: 8px; align-items: stretch; }
+    #landing-zip {
+      flex: 1; min-width: 0; padding: 10px 14px;
+      background: rgba(110,231,183,0.06); border: 1px solid rgba(110,231,183,0.28);
+      border-radius: 3px; color: white; font-size: 1.05rem;
+      font-weight: 700; letter-spacing: 0.12em; outline: none; transition: all 0.15s;
+    }
+    #landing-zip::placeholder { color: rgba(110,231,183,0.25); letter-spacing: 0.08em; }
+    #landing-zip:focus { border-color: var(--green); background: rgba(110,231,183,0.10); }
+    #landing-go {
+      flex-shrink: 0; padding: 10px 20px; background: var(--green);
+      border: none; border-radius: 3px; color: #0a2e1c; font-size: 0.73rem;
+      font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+      cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    #landing-go:hover { background: #a7f3d0; }
+    #landing-err {
+      font-size: 0.67rem; color: #fb7185; margin-top: 8px;
+      min-height: 1em; letter-spacing: 0.02em;
+    }
+    #landing-skip {
+      margin-top: 20px; text-align: center; font-size: 0.65rem;
+      color: rgba(255,255,255,0.2); cursor: pointer; letter-spacing: 0.06em;
+      transition: color 0.15s;
+    }
+    #landing-skip:hover { color: rgba(255,255,255,0.45); }
+  </style>
+</head>
+<body>
+
+<div id="landing-overlay" class="hidden">
+  <div id="landing-modal">
+    <div id="landing-brand">Bea<span>con</span></div>
+    <div id="landing-sub">Real estate trends across every U.S. ZIP code</div>
+    <div id="landing-label">Start with a ZIP code</div>
+    <div id="landing-input-row">
+      <input id="landing-zip" type="text" maxlength="5" placeholder="e.g. 98106" inputmode="numeric" autocomplete="postal-code" />
+      <button id="landing-go" onclick="landingSubmit()">Explore</button>
+    </div>
+    <div id="landing-err"></div>
+    <div id="landing-skip" onclick="landingSkip()">Skip — explore the full map</div>
+  </div>
+</div>
+
+<div id="header">
+  <h1>Bea<span>con</span></h1>
+  <button id="rankings-btn" onclick="toggleRankings()">Rankings</button>
+  <div id="search-wrap">
+    <input id="zip-input" type="text" maxlength="5" placeholder="Search ZIP code…" />
+    <button id="zip-go" onclick="jumpToZip()">→</button>
+  </div>
+</div>
+
+
+<div id="loading-bar"></div>
+<div id="loading-msg">Loading ZIP boundaries…</div>
+<div id="map"></div>
+
+<div id="stats-overlay">
+  <div class="stat-pill">US Median: <strong id="stat-median">—</strong></div>
+  <div class="stat-pill">Avg YoY: <strong id="stat-yoy">—</strong></div>
+  <div class="stat-pill">ZIPs: <strong id="stat-count">—</strong></div>
+</div>
+
+<div id="legend">
+  <select id="legend-select" onchange="changeMetric()">
+    <option value="value">Median Home Value</option>
+    <option value="yoy" selected>Year-over-Year Change %</option>
+  </select>
+  <div id="legend-items"></div>
+  <div id="legend-sources">
+    Data: <a href="https://www.zillow.com/research/data/" target="_blank" rel="noopener">Zillow Research</a>
+    · <a href="https://www.census.gov/geographies/mapping-files.html" target="_blank" rel="noopener">Census TIGER</a>
+    · <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+<div id="map-msg" style="display:none"></div>
+
+<div id="panel">
+  <div id="panel-header">
+    <button id="panel-close" onclick="closePanel()">✕</button>
+    <div id="panel-zip"></div>
+    <div id="panel-loc"></div>
+    <div id="invest-badge"></div>
+  </div>
+  <div id="panel-hero">
+    <div id="panel-hero-label">Current Home Value</div>
+    <div id="panel-hero-value"></div>
+    <div id="panel-hero-yoy"></div>
+    <div id="listing-links">
+      <a id="link-zillow" class="listing-link listing-link-zillow" target="_blank" rel="noopener">🏠 Zillow</a>
+      <a id="link-redfin" class="listing-link listing-link-redfin" target="_blank" rel="noopener">🔑 Redfin</a>
+    </div>
+  </div>
+  <div id="panel-stats"></div>
+  <div id="panel-charts"></div>
+</div>
+
+<!-- Rankings panel -->
+<div id="rankings-panel">
+  <div id="rankings-header">
+    <button id="rankings-close" onclick="toggleRankings()">✕</button>
+    <div id="rankings-title">Area Rankings</div>
+    <div id="metro-input-wrap">
+      <input id="metro-input" type="text" placeholder="Search metro area… (e.g. Seattle, WA)" autocomplete="off" />
+      <div id="metro-suggestions"></div>
+    </div>
+    <div id="rankings-controls">
+      <select class="rank-select" id="rank-period" onchange="loadRankings()">
+        <option value="appreciation_1y">1 Year</option>
+        <option value="appreciation_3y">3 Years</option>
+        <option value="appreciation_5y" selected>5 Years</option>
+        <option value="appreciation_10y">10 Years</option>
+        <option value="appreciation_20y">20 Years</option>
+        <option value="current_value">Current Value</option>
+      </select>
+      <select class="rank-select" id="rank-limit" onchange="loadRankings()">
+        <option value="25">Top 25</option>
+        <option value="50" selected>Top 50</option>
+        <option value="100">Top 100</option>
+        <option value="999">All ZIPs</option>
+      </select>
+    </div>
+  </div>
+  <div id="rankings-body-wrap">
+    <div id="rankings-empty">Search a metro area to see<br>which ZIPs have appreciated most</div>
+    <table id="rankings-table" style="display:none">
+      <thead>
+        <tr>
+          <th class="rank-num">#</th>
+          <th onclick="sortRankings('zip')">ZIP</th>
+          <th onclick="sortRankings('city')">City</th>
+          <th onclick="sortRankings('current_value')">Value</th>
+          <th onclick="sortRankings('appreciation_1y')">1yr</th>
+          <th onclick="sortRankings('appreciation_3y')">3yr</th>
+          <th onclick="sortRankings('appreciation_5y')">5yr</th>
+          <th onclick="sortRankings('appreciation_10y')">10yr</th>
+        </tr>
+      </thead>
+      <tbody id="rankings-rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// ── Session / cache constants ─────────────────────────────────────────────────
+const TTL          = 3_600_000; // 1 hour in ms
+const VISIT_KEY    = "beacon_last_visit";
+const LAST_ZIP_KEY = "beacon_last_zip";
+const IDB_NAME     = "beacon";
+const IDB_STORE    = "cache";
+const IDB_BOUNDS   = "boundaries";
+
+// ── IndexedDB helpers ─────────────────────────────────────────────────────────
+function _idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
+    r.onsuccess = e => res(e.target.result);
+    r.onerror   = () => rej(r.error);
+  });
+}
+async function idbGet(key) {
+  try {
+    const db = await _idbOpen();
+    return new Promise(res => {
+      const r = db.transaction(IDB_STORE).objectStore(IDB_STORE).get(key);
+      r.onsuccess = () => res(r.result ?? null);
+      r.onerror   = () => res(null);
+    });
+  } catch { return null; }
+}
+async function idbSet(key, val) {
+  try {
+    const db = await _idbOpen();
+    await new Promise(res => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(val, key);
+      tx.oncomplete = res; tx.onerror = res;
+    });
+  } catch {}
+}
+
+// ── Landing popup state ───────────────────────────────────────────────────────
+let _bootDone   = false;
+let _pendingZip = null;
+
+function isNewVisit() {
+  const last = parseInt(localStorage.getItem(VISIT_KEY) || "0");
+  return Date.now() - last > TTL;
+}
+
+function initLanding() {
+  if (!isNewVisit()) return;
+  const overlay = document.getElementById("landing-overlay");
+  overlay.classList.remove("hidden");
+  const input = document.getElementById("landing-zip");
+  input.focus();
+  input.addEventListener("keydown", e => { if (e.key === "Enter") landingSubmit(); });
+}
+
+function landingSubmit() {
+  const raw = document.getElementById("landing-zip").value.trim();
+  const zip = raw.padStart(5, "0");
+  const err = document.getElementById("landing-err");
+  if (!/^\d{5}$/.test(zip)) {
+    err.textContent = "Enter a valid 5-digit ZIP."; return;
+  }
+  err.textContent = "";
+  localStorage.setItem(VISIT_KEY, String(Date.now()));
+  document.getElementById("landing-overlay").classList.add("hidden");
+  _pendingZip = zip;
+  if (_bootDone) applyPendingZip();
+}
+
+function landingSkip() {
+  localStorage.setItem(VISIT_KEY, String(Date.now()));
+  document.getElementById("landing-overlay").classList.add("hidden");
+}
+
+function applyPendingZip() {
+  const zip = _pendingZip; _pendingZip = null;
+  const d = valueMap[zip];
+  if (d?.lat && d?.lng) map.setView([d.lat, d.lng], 12, { animate: true });
+  openPanel(zip);
+}
+
+const VALUE_BREAKS = [
+  { max: 150000,   color: "#313695", label: "< $150K"      },
+  { max: 300000,   color: "#4575b4", label: "$150K–300K"   },
+  { max: 500000,   color: "#74add1", label: "$300K–500K"   },
+  { max: 750000,   color: "#fdae61", label: "$500K–750K"   },
+  { max: 1000000,  color: "#f46d43", label: "$750K–$1M"    },
+  { max: Infinity, color: "#a50026", label: "> $1M"         },
+];
+
+const YOY_BREAKS = [
+  { max: -5,       color: "#d73027", label: "< -5%"    },
+  { max: 0,        color: "#fc8d59", label: "-5% – 0%"  },
+  { max: 3,        color: "#fee090", label: "0% – 3%"   },
+  { max: 7,        color: "#91cf60", label: "3% – 7%"   },
+  { max: Infinity, color: "#1a9850", label: "> 7%"      },
+];
+
+function getColor(val, metric) {
+  if (val == null) return "#1a2a2c";
+  const breaks = metric === "yoy" ? YOY_BREAKS : VALUE_BREAKS;
+  for (const b of breaks) if (val <= b.max) return b.color;
+  return "#555";
+}
+
+function fmtVal(v)  { if (!v) return "—"; return v >= 1000000 ? "$"+(v/1000000).toFixed(2)+"M" : "$"+Math.round(v).toLocaleString(); }
+function fmtYoy(y)  { if (y == null) return "—"; return (y >= 0 ? "▲ +" : "▼ ") + y.toFixed(1) + "% YoY"; }
+function fmtDays(v) { return v != null ? Math.round(v) + " days" : "—"; }
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let map, geoLayer, zipToLayer = {}, valueMap = {}, allData = [], currentMetric = "yoy";
+let activeLayer = null, chartInstances = {};
+const DEFAULT_ZIP = "98106";
+const DEFAULT_CENTER = [47.52, -122.37];
+
+// ── Map init ──────────────────────────────────────────────────────────────────
+map = L.map("map", { center: DEFAULT_CENTER, zoom: 11, zoomControl: true });
+// Base tiles (no labels) — polygons render on top of streets but under labels
+L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
+  attribution: "© OpenStreetMap © CARTO",
+  maxZoom: 19,
+}).addTo(map);
+
+// Label overlay — renders above polygons so city/street names stay readable
+const labelLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
+  maxZoom: 19, pane: "shadowPane",
+});
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+const tooltip = document.getElementById("tooltip");
+document.addEventListener("mousemove", e => {
+  if (tooltip.style.display === "block") {
+    tooltip.style.left = Math.min(e.clientX + 16, window.innerWidth - 235) + "px";
+    tooltip.style.top  = Math.max(e.clientY - 10, 10) + "px";
+  }
+});
+
+// ── Legend ────────────────────────────────────────────────────────────────────
+function buildLegend(metric) {
+  const breaks = metric === "yoy" ? YOY_BREAKS : VALUE_BREAKS;
+  document.getElementById("legend-items").innerHTML = breaks.map(b =>
+    `<div class="legend-row">
+       <div class="legend-swatch" style="background:${b.color}"></div>
+       <span class="legend-label">${b.label}</span>
+     </div>`
+  ).join("");
+}
+
+// ── Zoom-adaptive stroke weight ───────────────────────────────────────────────
+function strokeWeight() {
+  const z = map.getZoom();
+  if (z <= 5)  return 0.15;
+  if (z <= 7)  return 0.25;
+  if (z <= 9)  return 0.5;
+  if (z <= 11) return 0.8;
+  return 1.2;
+}
+
+// ── Style a GeoJSON feature ───────────────────────────────────────────────────
+function featureStyle(feature, selected = false) {
+  const zip = feature.properties.zip;
+  const d   = valueMap[zip];
+  const val = currentMetric === "yoy" ? d?.y : d?.v;
+  const hasSelection = activeLayer !== null;
+  return {
+    fillColor:   getColor(val, currentMetric),
+    fillOpacity: selected ? 0.75 : hasSelection ? 0.26 : 0.6,
+    color:       selected ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.1)",
+    weight:      selected ? 2.5 : hasSelection ? 0.2 : strokeWeight(),
+    opacity:     1,
+  };
+}
+
+// ── Render boundaries ─────────────────────────────────────────────────────────
+function renderBoundaries() {
+  if (geoLayer) { map.removeLayer(geoLayer); geoLayer = null; }
+  zipToLayer = {};
+
+  geoLayer = L.geoJSON(window._geojson, {
+    renderer: L.canvas({ padding: 0.5 }),
+    style: feature => featureStyle(feature),
+    onEachFeature: (feature, layer) => {
+      const zip = feature.properties.zip;
+      const d   = valueMap[zip] || {};
+      zipToLayer[zip] = layer;
+
+      layer.on("mouseover", () => {
+        if (activeLayer === layer) return;
+        const hasSelection = activeLayer !== null;
+        layer.setStyle({
+          fillOpacity: hasSelection ? 0.45 : 0.82,
+          color: "rgba(255,255,255,0.6)",
+          weight: Math.max(strokeWeight(), 0.8),
+        });
+        const yoyColor = d.y == null ? "" : d.y >= 0 ? "color:#6ee7b7" : "color:#fb7185";
+        tooltip.innerHTML = `
+          <div class="tt-zip">ZIP ${zip}</div>
+          <div class="tt-city">${d.city || ""}${d.state ? ", " + d.state : ""}</div>
+          <div class="tt-value">${fmtVal(d.v)}</div>
+          <div class="tt-yoy" style="${yoyColor}">${fmtYoy(d.y)}</div>
+          <div class="tt-hint">Click for full investment trends →</div>`;
+        tooltip.style.display = "block";
+      });
+
+      layer.on("mouseout", () => {
+        if (activeLayer !== layer) layer.setStyle(featureStyle(feature));
+        tooltip.style.display = "none";
+      });
+
+      layer.on("click", () => {
+        if (activeLayer === layer) { closePanel(); return; }
+        activeLayer = layer;
+        geoLayer.setStyle(f => featureStyle(f, f.properties.zip === zip));
+        layer.bringToFront();
+        openPanel(zip);
+      });
+    },
+  }).addTo(map);
+}
+
+// ── Highlight a ZIP without opening the panel ─────────────────────────────────
+function highlightZip(zip) {
+  activeLayer = zipToLayer[zip] || null;
+  if (!geoLayer) return;
+  geoLayer.setStyle(f => featureStyle(f, f.properties.zip === zip));
+  if (activeLayer) activeLayer.bringToFront();
+}
+
+// ── Change metric ─────────────────────────────────────────────────────────────
+function changeMetric() {
+  currentMetric = document.getElementById("legend-select").value;
+  buildLegend(currentMetric);
+  if (geoLayer) {
+    geoLayer.setStyle(feature => featureStyle(feature,
+      activeLayer && activeLayer.feature === feature));
+  }
+}
+
+// ── Jump to ZIP ───────────────────────────────────────────────────────────────
+function jumpToZip() {
+  const zip = document.getElementById("zip-input").value.trim().padStart(5, "0");
+  if (zip.length !== 5) return;
+  const d = valueMap[zip];
+  if (d?.lat && d?.lng) {
+    map.setView([d.lat, d.lng], 12, { animate: true });
+    openPanel(zip);
+  } else {
+    setMsg("No data for ZIP " + zip, true);
+  }
+}
+
+document.getElementById("zip-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") jumpToZip();
+});
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+async function boot() {
+  setLoading(10);
+  initLanding();
+
+  const newVisit = isNewVisit();
+
+  const [heatRes, statsRes] = await Promise.all([
+    fetch("/api/heatmap"),
+    fetch("/api/stats"),
+  ]);
+
+  if (!heatRes.ok) {
+    setMsg("⚠ " + (heatRes.status === 503 ? "Run: python ingest.py" : "Server error " + heatRes.status), true);
+    setLoading(0);
+    return;
+  }
+
+  allData = await heatRes.json();
+  if (!Array.isArray(allData)) { setMsg("⚠ Bad data from server", true); return; }
+
+  allData.forEach(d => { valueMap[d.z] = d; });
+
+  const stats = statsRes.ok ? await statsRes.json() : {};
+  document.getElementById("stat-median").textContent = fmtVal(stats.median_value);
+  document.getElementById("stat-yoy").textContent    = stats.median_yoy != null ? (stats.median_yoy >= 0 ? "+" : "") + stats.median_yoy + "%" : "—";
+  document.getElementById("stat-count").textContent  = allData.length.toLocaleString();
+
+  buildLegend(currentMetric);
+  setLoading(40);
+
+  // ── Boundaries: use IndexedDB cache when returning within 1 hour ─────────────
+  document.getElementById("loading-msg").style.display = "block";
+  let geojson = null;
+
+  if (!newVisit) {
+    const cached = await idbGet(IDB_BOUNDS);
+    if (cached?.ts && (Date.now() - cached.ts) < TTL) geojson = cached.data;
+  }
+
+  if (!geojson) {
+    const bRes = await fetch("/api/boundaries");
+    if (!bRes.ok) {
+      setMsg("⚠ Boundaries missing — run: python ingest.py", true);
+      document.getElementById("loading-msg").style.display = "none";
+      setLoading(0); return;
+    }
+    geojson = await bRes.json();
+    idbSet(IDB_BOUNDS, { ts: Date.now(), data: geojson }); // cache in background
+  }
+
+  window._geojson = geojson;
+  document.getElementById("loading-msg").style.display = "none";
+  setLoading(80);
+
+  renderBoundaries();
+  labelLayer.addTo(map);
+
+  let _zoomTimer = null;
+  map.on("zoomend", () => {
+    if (!geoLayer) return;
+    clearTimeout(_zoomTimer);
+    _zoomTimer = setTimeout(() => {
+      geoLayer.setStyle(f => featureStyle(f, activeLayer?.feature === f));
+    }, 80);
+  });
+
+  setLoading(100);
+  setTimeout(() => setLoading(0), 500);
+
+  _bootDone = true;
+
+  // If user submitted popup before boot finished, navigate now
+  if (_pendingZip) { applyPendingZip(); return; }
+
+  // New visits: popup handles navigation — no geolocation
+  if (newVisit) { map.setView([39, -96], 4, { animate: false }); return; }
+
+  // Returning visit: restore last ZIP, else geolocation
+  const savedZip = localStorage.getItem(LAST_ZIP_KEY);
+  if (savedZip && valueMap[savedZip]) {
+    const d = valueMap[savedZip];
+    if (d?.lat && d?.lng) map.setView([d.lat, d.lng], 12, { animate: false });
+    openPanel(savedZip);
+    return;
+  }
+
+  function findNearestZip(lat, lng) {
+    let best = null, bestDist = Infinity;
+    for (const d of allData) {
+      if (d.lat == null || d.lng == null) continue;
+      const dist = (d.lat - lat) ** 2 + (d.lng - lng) ** 2;
+      if (dist < bestDist) { bestDist = dist; best = d.z; }
+    }
+    return best;
+  }
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        map.setView([lat, lng], 11, { animate: false });
+        const zip = findNearestZip(lat, lng);
+        if (zip) openPanel(zip);
+      },
+      () => map.setView([39, -96], 4, { animate: false }),
+      { timeout: 5000 }
+    );
+  } else {
+    map.setView([39, -96], 4, { animate: false });
+  }
+}
+
+// ── Panel ─────────────────────────────────────────────────────────────────────
+async function openPanel(zip) {
+  localStorage.setItem(LAST_ZIP_KEY, zip);
+  highlightZip(zip);
+  document.getElementById("panel-zip").textContent  = "ZIP " + zip;
+  document.getElementById("panel-loc").textContent  = "Loading…";
+  document.getElementById("panel-stats").innerHTML  = "";
+  document.getElementById("panel-charts").innerHTML = "";
+  document.getElementById("invest-badge").textContent = "";
+  Object.values(chartInstances).forEach(c => c.destroy());
+  chartInstances = {};
+
+  document.getElementById("panel-hero").style.display = "none";
+  document.getElementById("panel").classList.add("open");
+  document.getElementById("map").classList.add("panel-open");
+  document.getElementById("map-msg").style.display = "none";
+
+  try {
+    const res  = await fetch("/api/zip/" + zip);
+    if (!res.ok) throw new Error("No data");
+    const data = await res.json();
+
+    document.getElementById("panel-loc").textContent = [
+      data.city && data.state ? `${data.city}, ${data.state}` : "",
+      data.county || ""
+    ].filter(Boolean).join(" · ");
+
+    renderHero(data);
+    renderBadge(data);
+    renderStats(data.configs, data.appreciation);
+    renderCharts(data.configs);
+  } catch {
+    document.getElementById("panel-loc").textContent = "No Zillow data for this ZIP";
+  }
+}
+
+function closePanel() {
+  activeLayer = null;
+  geoLayer?.setStyle(f => featureStyle(f));
+  document.getElementById("panel").classList.remove("open");
+  document.getElementById("map").classList.remove("panel-open");
+}
+
+// ── Hero stat ────────────────────────────────────────────────────────────────
+function renderHero(data) {
+  const hv   = data.configs?.home_values;
+  const hero = document.getElementById("panel-hero");
+  if (!hv?.values) { hero.style.display = "none"; return; }
+  const vals = hv.values.filter(v => v != null);
+  if (!vals.length) { hero.style.display = "none"; return; }
+  const last = vals[vals.length - 1];
+  const yoy  = calcYoy(hv.values);
+  document.getElementById("panel-hero-value").textContent = fmtVal(last);
+  const yoyEl = document.getElementById("panel-hero-yoy");
+  if (yoy != null) {
+    yoyEl.textContent = (yoy >= 0 ? "▲ +" : "▼ ") + yoy.toFixed(1) + "% year over year";
+    yoyEl.className   = yoy >= 0 ? "green" : "red";
+  } else {
+    yoyEl.textContent = "";
+  }
+  hero.style.display = "block";
+
+  const zip = data.zip;
+  document.getElementById("link-zillow").href = `https://www.zillow.com/homes/for_sale/${zip}_rb/`;
+  document.getElementById("link-redfin").href = `https://www.redfin.com/zipcode/${zip}`;
+  document.getElementById("listing-links").style.display = "flex";
+}
+
+// ── Badge ─────────────────────────────────────────────────────────────────────
+function renderBadge(data) {
+  const badge = document.getElementById("invest-badge");
+  let score   = 0;
+  const hv = data.configs?.home_values;
+  if (hv?.values) {
+    const yoy = calcYoy(hv.values);
+    if (yoy != null) score += yoy > 5 ? 2 : yoy > 0 ? 1 : -1;
+  }
+  const fc = data.configs?.home_values_forecasts;
+  if (fc?.values) {
+    const last = fc.values.filter(v=>v!=null).slice(-1)[0];
+    if (last != null) score += last > 3 ? 2 : last > 0 ? 1 : -1;
+  }
+  if (score >= 3)      { badge.textContent = "⬆ Strong Investment Signal";   badge.className = "invest-badge badge-strong"; }
+  else if (score >= 1) { badge.textContent = "→ Moderate Investment Signal";  badge.className = "invest-badge badge-moderate"; }
+  else                 { badge.textContent = "⬇ Caution — Declining Trend";   badge.className = "invest-badge badge-caution"; }
+}
+
+// ── Stats grid ────────────────────────────────────────────────────────────────
+const STAT_DEFS = [
+  { label: "Home Value",  cfg: "home_values",    fmt: fmtVal,  yoy: true },
+  { label: "Rent",        cfg: "rentals",        fmt: fmtVal,  yoy: true },
+  { label: "Median Sale", cfg: "sales",          fmt: fmtVal,  yoy: true },
+  { label: "Days on Mkt", cfg: "market_temp", fmt: v => v!=null ? v.toFixed(1) : "—", yoy: false },
+];
+
+function renderStats(configs, appreciation) {
+  const el = document.getElementById("panel-stats");
+  el.innerHTML = "";
+
+  STAT_DEFS.forEach(({ label, cfg, fmt, yoy }) => {
+    const c = configs[cfg]; if (!c?.values) return;
+    const last = c.values.filter(v=>v!=null).slice(-1)[0];
+    const y    = yoy ? calcYoy(c.values) : null;
+    el.innerHTML += `
+      <div class="p-stat">
+        <div class="p-stat-label">${label}</div>
+        <div class="p-stat-value">${fmt(last)}</div>
+        ${y!=null ? `<div class="p-stat-yoy ${y>=0?"green":"red"}">${y>=0?"▲ +":"▼ "}${Math.abs(y).toFixed(1)}% YoY</div>` : ""}
+      </div>`;
+  });
+
+  // Appreciation history — visual bars
+  if (appreciation) {
+    const rows = [
+      ["1yr",  appreciation.appreciation_1y],
+      ["3yr",  appreciation.appreciation_3y],
+      ["5yr",  appreciation.appreciation_5y],
+      ["10yr", appreciation.appreciation_10y],
+      ["20yr", appreciation.appreciation_20y],
+    ].filter(([,v]) => v != null);
+
+    if (rows.length) {
+      const maxAbs = Math.max(...rows.map(([,v]) => Math.abs(v)), 1);
+      el.innerHTML += `
+        <div id="appr-section">
+          <span class="p-stat-label">Appreciation History</span>
+          ${rows.map(([label, val]) => {
+            const pct  = Math.min(Math.abs(val) / maxAbs * 100, 100);
+            const cls  = val >= 0 ? "pos" : "neg";
+            return `
+              <div class="appr-row">
+                <span class="appr-period">${label}</span>
+                <div class="appr-track"><div class="appr-fill ${cls}" style="width:${pct}%"></div></div>
+                <span class="appr-pct ${cls}">${val >= 0 ? "+" : ""}${val.toFixed(1)}%</span>
+              </div>`;
+          }).join("")}
+        </div>`;
+    }
+  }
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+const CHART_DEFS = [
+  { label: "Home Value",    cfg: "home_values",       color: "#3b82f6", fmt: fmtVal, fmtShort: v => v>=1e6?"$"+(v/1e6).toFixed(1)+"M":v>=1000?"$"+(v/1000).toFixed(0)+"K":"$"+Math.round(v) },
+  { label: "Rent",          cfg: "rentals",            color: "#10b981", fmt: fmtVal, fmtShort: v => v>=1000?"$"+(v/1000).toFixed(1)+"K":"$"+Math.round(v) },
+  { label: "Median Sale",   cfg: "sales",              color: "#f59e0b", fmt: fmtVal, fmtShort: v => v>=1e6?"$"+(v/1e6).toFixed(1)+"M":v>=1000?"$"+(v/1000).toFixed(0)+"K":"$"+Math.round(v) },
+  { label: "New Listings",  cfg: "for_sale_listings",  color: "#14b8a6", fmt: v => v!=null?Math.round(v).toLocaleString():"—", fmtShort: v => Math.round(v) },
+];
+
+function renderCharts(configs) {
+  const el = document.getElementById("panel-charts");
+  el.innerHTML = "";
+  let first = true;
+  CHART_DEFS.forEach(({ label, cfg, color, fmt, fmtShort }) => {
+    const c = configs[cfg]; if (!c?.dates || !c?.values) return;
+    const vals = c.values.filter(v => v != null);
+    if (!vals.length) return;
+
+    const latest = vals[vals.length - 1];
+    const prev12 = vals.length >= 13 ? vals[vals.length - 13] : null;
+    const yoyPct = prev12 ? ((latest - prev12) / prev12) * 100 : null;
+    const yoyColor = yoyPct == null ? "#888" : yoyPct >= 0 ? "#059669" : "#fb7185";
+    const yoyStr  = yoyPct == null ? "" : (yoyPct >= 0 ? "▲" : "▼") + " " + Math.abs(yoyPct).toFixed(1) + "%";
+
+    const block  = document.createElement("div");
+    block.className = "chart-block";
+    block.style.setProperty("--accent", color);
+
+    const toggle = document.createElement("div");
+    toggle.className = "chart-toggle";
+    toggle.innerHTML = `
+      <span class="chart-label">${label}</span>
+      <span class="chart-latest">${fmtShort(latest)}</span>
+      <span class="chart-latest-yoy" style="color:${yoyColor}">${yoyStr}</span>
+      <span class="chart-arrow">▼</span>`;
+
+    const body   = document.createElement("div");
+    body.className = "chart-body";
+    const canvas = document.createElement("canvas");
+    canvas.height = 130;
+    body.appendChild(canvas);
+
+    const initChart = () => {
+      if (chartInstances[label]) return;
+      chartInstances[label] = new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: c.dates,
+          datasets: [{
+            data: c.values, borderColor: color,
+            backgroundColor: color + "18",
+            borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+            pointHoverBackgroundColor: color,
+            fill: true, tension: 0.4,
+          }],
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "#0d1117",
+              borderColor: color,
+              borderWidth: 1,
+              titleColor: "#9ca3af",
+              bodyColor: "#ffffff",
+              titleFont: { size: 10 },
+              bodyFont: { size: 13, weight: "700" },
+              padding: 10,
+              callbacks: {
+                title: ctx => ctx[0].label?.slice(0, 7) ?? "",
+                label: ctx => fmt(ctx.raw),
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: { maxTicksLimit: 5, color: "#9ca3af", font: { size: 10 }, maxRotation: 0 },
+              grid: { display: false },
+              border: { color: "#e4e7ec" },
+            },
+            y: {
+              ticks: { color: "#9ca3af", font: { size: 10 }, callback: v => fmtShort(v), maxTicksLimit: 5 },
+              grid: { color: "#f0f1f3", drawTicks: false },
+              border: { display: false },
+            },
+          },
+        },
+      });
+    };
+
+    toggle.addEventListener("click", () => {
+      const wasOpen = block.classList.contains("open");
+      block.classList.toggle("open");
+      if (!wasOpen) initChart();
+    });
+
+    block.appendChild(toggle);
+    block.appendChild(body);
+    el.appendChild(block);
+
+    if (first) { block.classList.add("open"); initChart(); first = false; }
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function calcYoy(vals) {
+  const c = (vals||[]).filter(v=>v!=null);
+  if (c.length < 13) return null;
+  const last = c[c.length-1], prev = c[c.length-13];
+  return prev ? ((last-prev)/prev)*100 : null;
+}
+function setLoading(pct) {
+  const b = document.getElementById("loading-bar");
+  b.style.width = pct + "%"; b.style.opacity = pct === 0 ? "0" : "1";
+}
+function setMsg(msg, err = false) {
+  const el = document.getElementById("map-msg");
+  el.textContent = msg; el.style.display = "block";
+  el.className = err ? "error" : "";
+}
+
+// ── Rankings ──────────────────────────────────────────────────────────────────
+let allMetros       = [];
+let rankingsData    = [];
+let rankSortCol     = null;
+let rankSortDesc    = true;
+let selectedMetro   = null;
+
+async function initRankings() {
+  const res = await fetch("/api/metros");
+  if (!res.ok) return;
+  allMetros = await res.json();
+}
+
+function toggleRankings() {
+  const panel = document.getElementById("rankings-panel");
+  const btn   = document.getElementById("rankings-btn");
+  const isOpen = panel.classList.contains("open");
+  if (isOpen) {
+    panel.classList.remove("open");
+    btn.classList.remove("active");
+    document.getElementById("map").classList.remove("panel-open");
+  } else {
+    // Close zip detail if open
+    document.getElementById("panel").classList.remove("open");
+    panel.classList.add("open");
+    btn.classList.add("active");
+    document.getElementById("map").classList.add("panel-open");
+    document.getElementById("map-msg").style.display = "none";
+    document.getElementById("metro-input").focus();
+  }
+}
+
+// Metro autocomplete
+document.addEventListener("DOMContentLoaded", () => {
+  const input = document.getElementById("metro-input");
+  const sugg  = document.getElementById("metro-suggestions");
+
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    sugg.innerHTML = "";
+    if (q.length < 2) { sugg.style.display = "none"; return; }
+    const matches = allMetros
+      .filter(m => m.metro.toLowerCase().includes(q))
+      .slice(0, 12);
+    if (!matches.length) { sugg.style.display = "none"; return; }
+    matches.forEach(m => {
+      const div = document.createElement("div");
+      div.className   = "metro-option";
+      div.textContent = `${m.metro} (${m.zip_count} ZIPs)`;
+      div.onclick = () => {
+        input.value = m.metro;
+        selectedMetro = m.metro;
+        sugg.style.display = "none";
+        loadRankings();
+      };
+      sugg.appendChild(div);
+    });
+    sugg.style.display = "block";
+  });
+
+  document.addEventListener("click", e => {
+    if (!e.target.closest("#metro-input-wrap")) sugg.style.display = "none";
+  });
+});
+
+async function loadRankings() {
+  if (!selectedMetro) return;
+  const period = document.getElementById("rank-period").value;
+  const limit  = document.getElementById("rank-limit").value;
+  const res = await fetch(`/api/rank?metro=${encodeURIComponent(selectedMetro)}&metric=${period}&limit=${limit}`);
+  if (!res.ok) return;
+  rankingsData = await res.json();
+  rankSortCol  = period;
+  rankSortDesc = true;
+  renderRankingsTable();
+}
+
+function sortRankings(col) {
+  if (rankSortCol === col) rankSortDesc = !rankSortDesc;
+  else { rankSortCol = col; rankSortDesc = true; }
+  rankingsData.sort((a, b) => {
+    const va = a[col], vb = b[col];
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    return rankSortDesc ? vb - va : va - vb;
+  });
+  renderRankingsTable();
+}
+
+function renderRankingsTable() {
+  const empty = document.getElementById("rankings-empty");
+  const table = document.getElementById("rankings-table");
+  const tbody = document.getElementById("rankings-rows");
+  if (!rankingsData.length) {
+    empty.style.display = "block"; table.style.display = "none"; return;
+  }
+  empty.style.display = "none"; table.style.display = "table";
+
+  // Update header sort indicators
+  document.querySelectorAll("#rankings-table thead th").forEach(th => {
+    th.classList.remove("sorted");
+    if (th.getAttribute("onclick")?.includes(rankSortCol)) th.classList.add("sorted");
+  });
+
+  tbody.innerHTML = "";
+  rankingsData.forEach((r, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="rank-num">${i+1}</td>
+      <td class="rank-zip">${r.zip}<span class="rank-links">
+        <a class="rank-link rank-link-z" href="https://www.zillow.com/homes/for_sale/${r.zip}_rb/" target="_blank" rel="noopener" onclick="event.stopPropagation()">Z</a>
+        <a class="rank-link rank-link-r" href="https://www.redfin.com/zipcode/${r.zip}" target="_blank" rel="noopener" onclick="event.stopPropagation()">R</a>
+      </span></td>
+      <td class="rank-city">${r.city || "—"}</td>
+      <td class="rank-val">${fmtVal(r.current_value)}</td>
+      <td class="${pctClass(r.appreciation_1y)}">${fmtPct(r.appreciation_1y)}</td>
+      <td class="${pctClass(r.appreciation_3y)}">${fmtPct(r.appreciation_3y)}</td>
+      <td class="${pctClass(r.appreciation_5y)}">${fmtPct(r.appreciation_5y)}</td>
+      <td class="${pctClass(r.appreciation_10y)}">${fmtPct(r.appreciation_10y)}</td>`;
+    tr.onclick = () => zoomToRankRow(r.zip);
+    tbody.appendChild(tr);
+  });
+}
+
+function pctClass(v) {
+  if (v == null) return "rank-pct na";
+  return "rank-pct " + (v >= 0 ? "pos" : "neg");
+}
+function fmtPct(v) {
+  if (v == null) return "—";
+  return (v >= 0 ? "+" : "") + v.toFixed(1) + "%";
+}
+
+function zoomToRankRow(zip) {
+  const d = valueMap[zip];
+  if (d?.lat && d?.lng) {
+    map.setView([d.lat, d.lng], 12, { animate: true });
+  }
+  // Close rankings, open ZIP detail
+  document.getElementById("rankings-panel").classList.remove("open");
+  document.getElementById("rankings-btn").classList.remove("active");
+  openPanel(zip);
+}
+
+// ── Launch ────────────────────────────────────────────────────────────────────
+boot().then(() => initRankings());
+</script>
+</body>
+</html>

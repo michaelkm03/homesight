@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beacon</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --border: #e0e4eb;
+      --text: #1a202c;
+      --muted: #718096;
+      --blue: #3b82f6;
+      --green: #10b981;
+      --red: #ef4444;
+      --orange: #f59e0b;
+      --purple: #8b5cf6;
+    }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; min-height: 100vh; }
+
+    /* ── Header ── */
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.25rem 2rem; display: flex; align-items: center; gap: 1rem; }
+    header h1 { font-size: 1.25rem; font-weight: 700; color: var(--text); }
+    header h1 span { color: #4ade80; }
+
+    /* ── Search ── */
+    #search-wrap { max-width: 480px; flex: 1; position: relative; }
+    #zip-input {
+      width: 100%; padding: 0.6rem 1rem; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 1rem; outline: none; transition: border 0.15s;
+    }
+    #zip-input:focus { border-color: var(--blue); }
+    #search-btn {
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      background: var(--blue); color: #fff; border: none; border-radius: 6px;
+      padding: 0.35rem 0.9rem; font-size: 0.85rem; cursor: pointer; font-weight: 600;
+    }
+    #search-btn:hover { background: #2563eb; }
+
+    /* ── Main ── */
+    main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+    #placeholder { text-align: center; padding: 5rem 2rem; color: var(--muted); }
+    #placeholder h2 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+
+    #zip-header { margin-bottom: 1.5rem; }
+    #zip-header h2 { font-size: 1.5rem; font-weight: 700; }
+    #zip-header p { color: var(--muted); font-size: 0.9rem; }
+
+    /* ── Stats bar ── */
+    #stats-bar { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1rem 1.25rem; flex: 1; min-width: 160px;
+    }
+    .stat-card .label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.3rem; }
+    .stat-card .value { font-size: 1.4rem; font-weight: 700; }
+    .stat-card .change { font-size: 0.78rem; margin-top: 0.2rem; }
+    .up   { color: var(--green); }
+    .down { color: var(--red); }
+
+    /* ── Charts grid ── */
+    #charts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); gap: 1.5rem; }
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.25rem;
+    }
+    .chart-card h3 { font-size: 0.9rem; font-weight: 600; margin-bottom: 1rem; color: var(--text); }
+    .chart-card canvas { width: 100% !important; }
+
+    #error-msg { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 1rem 1.25rem; color: var(--red); margin-bottom: 1rem; display: none; }
+    #loading { text-align: center; padding: 3rem; color: var(--muted); display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Man<span>tis</span></h1>
+  <div id="search-wrap">
+    <input id="zip-input" type="text" placeholder="Enter ZIP code (e.g. 90210)" maxlength="5" />
+    <button id="search-btn" onclick="search()">Search</button>
+  </div>
+</header>
+
+<main>
+  <div id="error-msg"></div>
+  <div id="loading">Loading data…</div>
+
+  <div id="placeholder">
+    <h2>Enter a ZIP code to explore housing trends</h2>
+    <p>Home values · Rentals · Days on market · Sale prices · Forecasts</p>
+  </div>
+
+  <div id="results" style="display:none">
+    <div id="zip-header">
+      <h2 id="zip-title"></h2>
+      <p id="zip-sub"></p>
+    </div>
+    <div id="stats-bar"></div>
+    <div id="charts-grid"></div>
+  </div>
+</main>
+
+<script>
+const COLORS = {
+  blue:   "#3b82f6",
+  green:  "#10b981",
+  red:    "#ef4444",
+  orange: "#f59e0b",
+  purple: "#8b5cf6",
+  teal:   "#14b8a6",
+  pink:   "#ec4899",
+};
+
+const CONFIG_META = {
+  home_values: {
+    label: "Home Values (ZHVI)",
+    color: COLORS.blue,
+    keyCol: "zhvi_all_homes_smoothed_seasonally_adjusted",
+    fallbackCols: ["zhvi", "mid_tier", "bottom_tier", "top_tier"],
+    format: "dollar",
+  },
+  home_values_forecasts: {
+    label: "Home Value Forecast (YoY %)",
+    color: COLORS.purple,
+    keyCol: "zhvi_all_homes_smoothed_seasonally_adjusted_year_over_year",
+    fallbackCols: ["year_over_year"],
+    format: "percent",
+  },
+  rentals: {
+    label: "Observed Rent Index (ZORI)",
+    color: COLORS.green,
+    keyCol: "zori_all_homes_smoothed",
+    fallbackCols: ["zori", "rent", "smoothed"],
+    format: "dollar",
+  },
+  sales: {
+    label: "Median Sale Price",
+    color: COLORS.orange,
+    keyCol: "median_sale_price_all_homes",
+    fallbackCols: ["median_sale_price", "sale_price"],
+    format: "dollar",
+  },
+  for_sale_listings: {
+    label: "Median Listing Price",
+    color: COLORS.teal,
+    keyCol: "median_listing_price_all_homes",
+    fallbackCols: ["median_listing_price", "listing_price"],
+    format: "dollar",
+  },
+  days_on_market: {
+    label: "Days on Market",
+    color: COLORS.red,
+    keyCol: "median_days_to_pending_smoothed",
+    fallbackCols: ["days_to_pending", "days_on_market", "median_days"],
+    format: "days",
+  },
+  new_construction: {
+    label: "New Construction Sale Price",
+    color: COLORS.pink,
+    keyCol: "median_sale_price_new_construction",
+    fallbackCols: ["median_sale_price", "sale_price"],
+    format: "dollar",
+  },
+};
+
+let chartInstances = {};
+
+function fmt(val, type) {
+  if (val == null) return "—";
+  if (type === "dollar") return "$" + Math.round(val).toLocaleString();
+  if (type === "percent") return (val > 0 ? "+" : "") + val.toFixed(1) + "%";
+  if (type === "days") return Math.round(val) + " days";
+  return val;
+}
+
+function pickColumn(data, meta) {
+  if (data[meta.keyCol] !== undefined) return meta.keyCol;
+  for (const col of meta.fallbackCols || []) {
+    const match = Object.keys(data).find(k => k.includes(col));
+    if (match) return match;
+  }
+  // last resort: first numeric column that isn't dates
+  return Object.keys(data).find(k => k !== "dates" && Array.isArray(data[k]) &&
+    data[k].some(v => typeof v === "number"));
+}
+
+function yoyChange(vals) {
+  const cleaned = vals.filter(v => v != null);
+  if (cleaned.length < 13) return null;
+  const latest = cleaned[cleaned.length - 1];
+  const year_ago = cleaned[cleaned.length - 13];
+  if (!year_ago) return null;
+  return ((latest - year_ago) / year_ago) * 100;
+}
+
+function renderStat(label, value, yoy, format) {
+  const changeHtml = yoy != null
+    ? `<div class="change ${yoy >= 0 ? "up" : "down"}">${yoy >= 0 ? "▲" : "▼"} ${Math.abs(yoy).toFixed(1)}% YoY</div>`
+    : "";
+  return `
+    <div class="stat-card">
+      <div class="label">${label}</div>
+      <div class="value">${fmt(value, format)}</div>
+      ${changeHtml}
+    </div>`;
+}
+
+function renderChart(containerId, label, dates, values, color, format) {
+  const canvas = document.createElement("canvas");
+  canvas.height = 220;
+  const card = document.createElement("div");
+  card.className = "chart-card";
+  card.innerHTML = `<h3>${label}</h3>`;
+  card.appendChild(canvas);
+  document.getElementById(containerId).appendChild(card);
+
+  if (chartInstances[label]) chartInstances[label].destroy();
+
+  const cleaned = values.map((v, i) => ({ x: dates[i], y: v })).filter(p => p.y != null);
+
+  chartInstances[label] = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: dates,
+      datasets: [{
+        data: values,
+        borderColor: color,
+        backgroundColor: color + "18",
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        fill: true,
+        tension: 0.3,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => fmt(ctx.raw, format),
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxTicksLimit: 8,
+            color: "#718096",
+            font: { size: 11 },
+          },
+          grid: { display: false },
+        },
+        y: {
+          ticks: {
+            color: "#718096",
+            font: { size: 11 },
+            callback: val => fmt(val, format),
+          },
+          grid: { color: "#f0f0f0" },
+        },
+      },
+    },
+  });
+}
+
+async function search() {
+  const zip = document.getElementById("zip-input").value.trim();
+  if (zip.length !== 5 || isNaN(zip)) {
+    showError("Please enter a valid 5-digit ZIP code.");
+    return;
+  }
+  clearError();
+  document.getElementById("placeholder").style.display = "none";
+  document.getElementById("results").style.display    = "none";
+  document.getElementById("loading").style.display    = "block";
+  Object.values(chartInstances).forEach(c => c.destroy());
+  chartInstances = {};
+
+  try {
+    const res  = await fetch(`/api/zip/${zip}`);
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "ZIP not found");
+    }
+    const data = await res.json();
+    renderResults(zip, data);
+  } catch (e) {
+    showError(e.message);
+    document.getElementById("placeholder").style.display = "block";
+  } finally {
+    document.getElementById("loading").style.display = "none";
+  }
+}
+
+function renderResults(zip, data) {
+  document.getElementById("zip-title").textContent = `ZIP Code ${zip}`;
+  const configNames = Object.keys(data.configs);
+  document.getElementById("zip-sub").textContent =
+    `${configNames.length} data series available · Zillow Research`;
+
+  // Stats bar
+  const statsBar = document.getElementById("stats-bar");
+  statsBar.innerHTML = "";
+  const statConfigs = ["home_values", "rentals", "sales", "days_on_market"];
+  for (const cname of statConfigs) {
+    const meta  = CONFIG_META[cname];
+    const cdata = data.configs[cname];
+    if (!cdata) continue;
+    const col   = pickColumn(cdata, meta);
+    if (!col) continue;
+    const vals  = cdata[col];
+    const last  = vals ? vals.filter(v => v != null).slice(-1)[0] : null;
+    const yoy   = vals ? yoyChange(vals) : null;
+    statsBar.innerHTML += renderStat(meta.label, last, yoy, meta.format);
+  }
+
+  // Charts
+  const grid = document.getElementById("charts-grid");
+  grid.innerHTML = "";
+  for (const [cname, cdata] of Object.entries(data.configs)) {
+    const meta  = CONFIG_META[cname] || { label: cname, color: COLORS.blue, format: "number" };
+    const col   = pickColumn(cdata, meta);
+    if (!col || !cdata.dates) continue;
+    renderChart("charts-grid", meta.label, cdata.dates, cdata[col], meta.color, meta.format);
+  }
+
+  document.getElementById("results").style.display = "block";
+}
+
+function showError(msg) {
+  const el = document.getElementById("error-msg");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+function clearError() {
+  document.getElementById("error-msg").style.display = "none";
+}
+
+document.getElementById("zip-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") search();
+});
+</script>
+</body>
+</html>
