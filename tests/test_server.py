@@ -1,5 +1,5 @@
 """
-tests/test_server.py — API endpoint tests for Beacon.
+tests/test_server.py — API endpoint tests for HomeSight.
 Run with: pytest tests/ -v
 """
 import pytest

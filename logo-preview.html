@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Beacon — Logo</title>
+  <title>HomeSight — Logo</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -20,7 +20,7 @@
     .sizes { display: flex; flex-direction: column; align-items: center; gap: 40px; }
     .size-row { display: flex; align-items: center; gap: 20px; }
     .size-hint { color: rgba(255,255,255,0.12); font-size: 0.58rem; letter-spacing: 0.08em; width: 36px; text-align: right; }
-    .wordmark { font-size: 0.72rem; font-weight: 900; letter-spacing: 0.22em; text-transform: uppercase; color: white; }
+    .wordmark { font-size: 0.72rem; font-weight: 900; letter-spacing: 0.18em; text-transform: uppercase; color: white; }
     .wordmark span { color: #6ee7b7; }
     .divider { width: 400px; border: none; border-top: 1px solid rgba(255,255,255,0.06); }
     .preview-row { display: flex; align-items: center; gap: 48px; }
@@ -30,46 +30,58 @@
 </head>
 <body>
 
-<h1>Beacon — Uptick Logo</h1>
+<h1>HomeSight — Logo</h1>
 
 <div class="sizes">
 
   <div class="size-row">
     <span class="size-hint">128</span>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 36" width="128" height="104">
-      <path d="M 4 32 L 4 27 L 16 21 L 24 11 L 38 5 L 38 32 Z" fill="#6ee7b7" opacity="0.07"/>
-      <polyline points="4,27 16,21 24,11 38,5"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 44" width="128" height="110">
+      <!-- Trend line (faint behind glass) -->
+      <polyline points="2,38 14,34 22,20 44,12"
+                fill="none" stroke="#6ee7b7" stroke-width="2.2"
+                stroke-linecap="round" stroke-linejoin="round" opacity="0.25"/>
+      <!-- Magnifying glass circle centered on uptick peak (22, 20) -->
+      <circle cx="22" cy="20" r="13" fill="#0d1117"/>
+      <circle cx="22" cy="20" r="13" fill="none" stroke="#6ee7b7" stroke-width="2.4"/>
+      <!-- Trend line bright inside glass -->
+      <clipPath id="lens">
+        <circle cx="22" cy="20" r="12"/>
+      </clipPath>
+      <polyline points="2,38 14,34 22,20 44,12"
                 fill="none" stroke="#6ee7b7" stroke-width="2.6"
-                stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="38" cy="5" r="3.2" fill="#6ee7b7"/>
-      <line x1="4" y1="32" x2="40" y2="32"
-            stroke="#6ee7b7" stroke-width="1.4" stroke-linecap="round" opacity="0.2"/>
+                stroke-linecap="round" stroke-linejoin="round"
+                clip-path="url(#lens)"/>
+      <!-- Peak dot inside glass -->
+      <circle cx="22" cy="20" r="2.8" fill="#6ee7b7" clip-path="url(#lens)"/>
+      <!-- Handle -->
+      <line x1="31.2" y1="29.2" x2="42" y2="40" stroke="#6ee7b7" stroke-width="2.8" stroke-linecap="round"/>
     </svg>
   </div>
 
   <div class="size-row">
     <span class="size-hint">48</span>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 36" width="48" height="39">
-      <path d="M 4 32 L 4 27 L 16 21 L 24 11 L 38 5 L 38 32 Z" fill="#6ee7b7" opacity="0.07"/>
-      <polyline points="4,27 16,21 24,11 38,5"
-                fill="none" stroke="#6ee7b7" stroke-width="2.6"
-                stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="38" cy="5" r="3.2" fill="#6ee7b7"/>
-      <line x1="4" y1="32" x2="40" y2="32"
-            stroke="#6ee7b7" stroke-width="1.4" stroke-linecap="round" opacity="0.2"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 44" width="48" height="41">
+      <polyline points="2,38 14,34 22,20 44,12" fill="none" stroke="#6ee7b7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.25"/>
+      <circle cx="22" cy="20" r="13" fill="#0d1117"/>
+      <circle cx="22" cy="20" r="13" fill="none" stroke="#6ee7b7" stroke-width="2.4"/>
+      <clipPath id="lens2"><circle cx="22" cy="20" r="12"/></clipPath>
+      <polyline points="2,38 14,34 22,20 44,12" fill="none" stroke="#6ee7b7" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#lens2)"/>
+      <circle cx="22" cy="20" r="2.8" fill="#6ee7b7" clip-path="url(#lens2)"/>
+      <line x1="31.2" y1="29.2" x2="42" y2="40" stroke="#6ee7b7" stroke-width="2.8" stroke-linecap="round"/>
     </svg>
   </div>
 
   <div class="size-row">
     <span class="size-hint">20</span>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 36" width="20" height="16">
-      <path d="M 4 32 L 4 27 L 16 21 L 24 11 L 38 5 L 38 32 Z" fill="#6ee7b7" opacity="0.07"/>
-      <polyline points="4,27 16,21 24,11 38,5"
-                fill="none" stroke="#6ee7b7" stroke-width="2.6"
-                stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="38" cy="5" r="3.2" fill="#6ee7b7"/>
-      <line x1="4" y1="32" x2="40" y2="32"
-            stroke="#6ee7b7" stroke-width="1.4" stroke-linecap="round" opacity="0.2"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 44" width="20" height="17">
+      <polyline points="2,38 14,34 22,20 44,12" fill="none" stroke="#6ee7b7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.25"/>
+      <circle cx="22" cy="20" r="13" fill="#0d1117"/>
+      <circle cx="22" cy="20" r="13" fill="none" stroke="#6ee7b7" stroke-width="2.4"/>
+      <clipPath id="lens3"><circle cx="22" cy="20" r="12"/></clipPath>
+      <polyline points="2,38 14,34 22,20 44,12" fill="none" stroke="#6ee7b7" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#lens3)"/>
+      <circle cx="22" cy="20" r="2.8" fill="#6ee7b7" clip-path="url(#lens3)"/>
+      <line x1="31.2" y1="29.2" x2="42" y2="40" stroke="#6ee7b7" stroke-width="2.8" stroke-linecap="round"/>
     </svg>
   </div>
 
@@ -81,32 +93,32 @@
 
   <div>
     <div style="display:flex;align-items:center;gap:12px;">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 36" width="32" height="26">
-        <path d="M 4 32 L 4 27 L 16 21 L 24 11 L 38 5 L 38 32 Z" fill="#6ee7b7" opacity="0.07"/>
-        <polyline points="4,27 16,21 24,11 38,5"
-                  fill="none" stroke="#6ee7b7" stroke-width="2.6"
-                  stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="38" cy="5" r="3.2" fill="#6ee7b7"/>
-        <line x1="4" y1="32" x2="40" y2="32"
-              stroke="#6ee7b7" stroke-width="1.4" stroke-linecap="round" opacity="0.2"/>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 44" width="30" height="26">
+        <polyline points="2,38 14,34 22,20 44,12" fill="none" stroke="#6ee7b7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.25"/>
+        <circle cx="22" cy="20" r="13" fill="#0d1117"/>
+        <circle cx="22" cy="20" r="13" fill="none" stroke="#6ee7b7" stroke-width="2.4"/>
+        <clipPath id="lens4"><circle cx="22" cy="20" r="12"/></clipPath>
+        <polyline points="2,38 14,34 22,20 44,12" fill="none" stroke="#6ee7b7" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#lens4)"/>
+        <circle cx="22" cy="20" r="2.8" fill="#6ee7b7" clip-path="url(#lens4)"/>
+        <line x1="31.2" y1="29.2" x2="42" y2="40" stroke="#6ee7b7" stroke-width="2.8" stroke-linecap="round"/>
       </svg>
-      <div class="wordmark">Bea<span>con</span></div>
+      <div class="wordmark">Home<span>Sight</span></div>
     </div>
     <div class="preview-label">dark bg</div>
   </div>
 
   <div>
     <div class="light-bg">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 36" width="32" height="26">
-        <path d="M 4 32 L 4 27 L 16 21 L 24 11 L 38 5 L 38 32 Z" fill="#059669" opacity="0.09"/>
-        <polyline points="4,27 16,21 24,11 38,5"
-                  fill="none" stroke="#059669" stroke-width="2.6"
-                  stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="38" cy="5" r="3.2" fill="#059669"/>
-        <line x1="4" y1="32" x2="40" y2="32"
-              stroke="#059669" stroke-width="1.4" stroke-linecap="round" opacity="0.25"/>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 44" width="30" height="26">
+        <polyline points="2,38 14,34 22,20 44,12" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.25"/>
+        <circle cx="22" cy="20" r="13" fill="#f4f5f7"/>
+        <circle cx="22" cy="20" r="13" fill="none" stroke="#059669" stroke-width="2.4"/>
+        <clipPath id="lens5"><circle cx="22" cy="20" r="12"/></clipPath>
+        <polyline points="2,38 14,34 22,20 44,12" fill="none" stroke="#059669" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#lens5)"/>
+        <circle cx="22" cy="20" r="2.8" fill="#059669" clip-path="url(#lens5)"/>
+        <line x1="31.2" y1="29.2" x2="42" y2="40" stroke="#059669" stroke-width="2.8" stroke-linecap="round"/>
       </svg>
-      <div style="font-size:0.72rem;font-weight:900;letter-spacing:0.22em;text-transform:uppercase;color:#0d1117;">Bea<span style="color:#059669">con</span></div>
+      <div style="font-size:0.72rem;font-weight:900;letter-spacing:0.18em;text-transform:uppercase;color:#0d1117;">Home<span style="color:#059669">Sight</span></div>
     </div>
     <div class="preview-label">light bg</div>
   </div>

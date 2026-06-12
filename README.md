@@ -1,4 +1,4 @@
-# Beacon
+# HomeSight
 
 Interactive U.S. housing market map built on Zillow's public research data. Visualizes home values, rent, appreciation, and sales trends across 26,000+ ZIP codes.
 
@@ -128,7 +128,7 @@ zillow-trends/
 
 ## Deployment
 
-Beacon runs on **AWS Lightsail** (4 GB RAM) behind nginx with SSL via Let's Encrypt.
+HomeSight runs on **AWS Lightsail** (4 GB RAM) behind nginx with SSL via Let's Encrypt.
 
 **Stack:**
 - AWS Lightsail — Ubuntu 24.04, 4 GB RAM (needed to hold 10M+ parquet rows in memory)

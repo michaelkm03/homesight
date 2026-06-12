@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Beacon</title>
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
+  <title>HomeSight</title>
   <link rel="stylesheet" href="/static/leaflet.css" />
   <script src="/static/leaflet.js"></script>
   <script src="/static/chart.umd.min.js"></script>
@@ -451,7 +452,7 @@
 
 <div id="landing-overlay" class="hidden">
   <div id="landing-modal">
-    <div id="landing-brand">Bea<span>con</span></div>
+    <div id="landing-brand">Home<span>Sight</span></div>
     <div id="landing-sub">Real estate trends across every U.S. ZIP code</div>
     <div id="landing-label">Start with a ZIP code</div>
     <div id="landing-input-row">
@@ -464,7 +465,7 @@
 </div>
 
 <div id="header">
-  <h1><img src="/static/logo.svg" alt="" width="22" height="18" style="display:inline-block;vertical-align:middle;margin-right:8px;margin-bottom:2px;">Bea<span>con</span></h1>
+  <h1><img src="/static/logo.svg" alt="" width="26" height="22" style="display:inline-block;vertical-align:middle;margin-right:8px;margin-bottom:2px;">Home<span>Sight</span></h1>
   <button id="rankings-btn" onclick="toggleRankings()">Rankings</button>
   <a href="/data" id="data-btn">Data Sources</a>
   <div id="search-wrap">
@@ -569,9 +570,9 @@
 <script>
 // ── Session / cache constants ─────────────────────────────────────────────────
 const TTL          = 3_600_000; // 1 hour in ms
-const VISIT_KEY    = "beacon_last_visit";
-const LAST_ZIP_KEY = "beacon_last_zip";
-const IDB_NAME     = "beacon";
+const VISIT_KEY    = "homesight_last_visit";
+const LAST_ZIP_KEY = "homesight_last_zip";
+const IDB_NAME     = "homesight";
 const IDB_STORE    = "cache";
 const IDB_BOUNDS   = "boundaries";
 

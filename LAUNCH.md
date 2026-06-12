@@ -1,4 +1,4 @@
-# Beacon Launch Gameplan
+# HomeSight Launch Gameplan
 
 ## Channel Priority
 
@@ -18,7 +18,7 @@
 
 1. `r/dataisbeautiful` — post map screenshot as [OC], credit Zillow Research, mention tool in comments
 2. `r/MapPorn` — the national ZIP choropleth is exactly what this sub is for
-3. `r/FirstTimeHomeBuyer` — answer questions with Beacon data first, then disclose you built it
+3. `r/FirstTimeHomeBuyer` — answer questions with HomeSight data first, then disclose you built it
 4. `r/RealEstate` — same approach
 5. `r/realestateinvesting` — appreciation trends + rent data directly relevant
 6. `r/REBubble` — data-hungry audience that loves raw charts
@@ -35,7 +35,7 @@
 
 **Title:**
 ```
-Show HN: Beacon – Home values and rent trends across 26K U.S. ZIP codes
+Show HN: HomeSight – Home values and rent trends across 26K U.S. ZIP codes
 ```
 
 - No exclamation marks, no marketing language — describe exactly what it does
@@ -50,7 +50,7 @@ Show HN: Beacon – Home values and rent trends across 26K U.S. ZIP codes
 
 **Zero-follower strategy — reply farming beats broadcast posting:**
 - Find housing market tweets from large accounts
-- Reply within 30–60 minutes with a relevant Beacon screenshot
+- Reply within 30–60 minutes with a relevant HomeSight screenshot
 - Early replies on viral threads get massive exposure before the thread gets crowded
 
 **Launch thread format:**
@@ -79,7 +79,7 @@ Never lead with the link — algorithms suppress link-first posts.
 
 ## Programmatic SEO (Month 2+)
 
-Beacon's biggest long-term opportunity. Zillow built 33M monthly visits largely through programmatic location pages — Beacon can mirror this at ZIP-code level where there is almost zero competition.
+HomeSight's biggest long-term opportunity. Zillow built 33M monthly visits largely through programmatic location pages — HomeSight can mirror this at ZIP-code level where there is almost zero competition.
 
 **Page structure to build:**
 ```
@@ -93,14 +93,14 @@ Each page must:
 - Have a unique `<title>` and meta description per location
 - Be linked via state → city → ZIP internal hierarchy
 
-**Critical blocker:** Beacon is currently a single-page app. AI crawlers (Perplexity, ChatGPT, Claude) and some Googlebot passes cannot execute JS and see a blank shell. SSR must be implemented before investing in SEO.
+**Critical blocker:** HomeSight is currently a single-page app. AI crawlers (Perplexity, ChatGPT, Claude) and some Googlebot passes cannot execute JS and see a blank shell. SSR must be implemented before investing in SEO.
 
 ---
 
 ## Pre-Launch Checklist
 
 - [ ] Verify site in Google Search Console, submit sitemap
-- [ ] Build Reddit karma in r/RealEstate + r/FirstTimeHomeBuyer (no Beacon mentions yet)
+- [ ] Build Reddit karma in r/RealEstate + r/FirstTimeHomeBuyer (no HomeSight mentions yet)
 - [ ] Create Product Hunt maker account
 - [ ] Start participating in Indie Hackers discussions
 

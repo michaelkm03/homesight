@@ -1,5 +1,5 @@
 """
-server.py — Beacon API
+server.py — HomeSight API
 Serves ZIP-level housing trend data from Zillow Research public CSVs.
 """
 from pathlib import Path
@@ -27,7 +27,7 @@ TILE_SOURCES = {
     "labels": "https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png",
 }
 
-app = FastAPI(title="Beacon API", version="1.0.0")
+app = FastAPI(title="HomeSight API", version="1.0.0")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
@@ -315,7 +315,7 @@ async def proxy_tile(layer: str, z: int, x: int, y: int):
     global _tile_client, _cached_tile_count
     # Lazily create the persistent client on first tile request (must be inside the event loop)
     if _tile_client is None:
-        _tile_client = httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "Beacon/1.0"})
+        _tile_client = httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "HomeSight/1.0"})
 
     url = TILE_SOURCES[layer].format(z=z, x=x, y=y)
     try:
