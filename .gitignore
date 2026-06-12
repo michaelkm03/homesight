@@ -4,6 +4,9 @@ data/
 *.geojson
 *.geojson.gz
 
+# Tile cache (populated at runtime by the tile proxy — do not commit)
+data/tiles/
+
 # Python
 __pycache__/
 *.py[cod]

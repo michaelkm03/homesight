@@ -5,17 +5,27 @@ Serves ZIP-level housing trend data from Zillow Research public CSVs.
 from pathlib import Path
 from typing import Optional
 
+import httpx
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.staticfiles import StaticFiles
 
-DATA_DIR    = Path("data")
+BASE_DIR    = Path(__file__).parent
+DATA_DIR    = BASE_DIR / "data"
+STATIC_DIR  = BASE_DIR / "static"
+TILE_DIR    = DATA_DIR / "tiles"
 CACHE_1H    = "public, max-age=3600"
 CACHE_24H   = "public, max-age=86400"
 ZIP_CONFIGS = ["home_values", "rentals", "sales", "market_temp", "for_sale_listings"]
+
+TILE_SOURCES = {
+    "base":   "https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png",
+    "labels": "https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png",
+}
 
 app = FastAPI(title="Beacon API", version="1.0.0")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -28,6 +38,13 @@ zip_meta:           Optional[pd.DataFrame]  = None
 heatmap_cache:      Optional[list]          = None
 appreciation_table: dict                    = {}
 metro_to_zips:      dict[str, set]          = {}
+zip_index:          dict[str, dict]         = {}  # config -> {zip: (start, end)}
+zip_response_cache: dict                    = {}  # zip -> full API response dict
+zip_meta_dict:      dict[str, dict]         = {}  # zip -> {city, state, metro, county} — O(1) vs O(n) DataFrame scan
+stats_cache:        Optional[dict]          = None  # pre-computed at startup; /api/stats never recomputes
+metros_cache:       Optional[list]          = None  # pre-sorted at startup; /api/metros never re-sorts
+_cached_tile_count: int                     = 0     # incremented on write; avoids rglob on every /health
+_tile_client:       Optional[httpx.AsyncClient] = None  # lazily created inside event loop on first tile fetch
 
 # ── Serialisation helper ──────────────────────────────────────────────────────
 def _clean(v):
@@ -44,13 +61,24 @@ def _clean_row(row: dict) -> dict:
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 def load_all():
-    global zip_df, zip_meta, heatmap_cache, appreciation_table, metro_to_zips
+    global zip_df, zip_meta, heatmap_cache, appreciation_table, metro_to_zips, \
+           zip_meta_dict, stats_cache, metros_cache, _cached_tile_count
 
     for c in ZIP_CONFIGS:
         p = DATA_DIR / f"{c}.parquet"
         if p.exists():
-            dfs[c] = pd.read_parquet(p)
-            print(f"  {c}: {len(dfs[c]):,} rows")
+            df = pd.read_parquet(p).sort_values(["zip", "date"]).reset_index(drop=True)
+            dfs[c] = df
+            # Build binary-search index: zip -> (row_start, row_end)
+            zips_arr = df["zip"].values
+            idx = {}
+            for z in df["zip"].unique():
+                idx[z] = (
+                    int(np.searchsorted(zips_arr, z, side="left")),
+                    int(np.searchsorted(zips_arr, z, side="right")),
+                )
+            zip_index[c] = idx
+            print(f"  {c}: {len(df):,} rows")
         else:
             print(f"  MISSING {c} — run python ingest.py")
 
@@ -73,17 +101,32 @@ def load_all():
         for metro, grp in valid.groupby("metro"):
             metro_to_zips[str(metro)] = set(grp["zip"].tolist())
         print(f"  zip_meta: {len(zip_meta):,} ZIPs, {len(metro_to_zips):,} metros")
+        zip_meta_dict = zip_meta.set_index("zip")[["city","state","metro","county"]].to_dict("index")  # O(1) lookup replaces per-request O(n) boolean filter
 
     heatmap_cache      = _build_heatmap()
     appreciation_table = _build_appreciation_table()
     print(f"  Heatmap: {len(heatmap_cache):,} ZIPs ready")
     print(f"  Appreciation table: {len(appreciation_table):,} ZIPs ready")
 
+    # stats and metros never change after load — compute once, return reference thereafter
+    vals = sorted(r["v"] for r in heatmap_cache if r.get("v") is not None)
+    yoys = [r["y"] for r in heatmap_cache if r.get("y") is not None]
+    stats_cache = {
+        "total_zips":   len(heatmap_cache),
+        "median_value": round(vals[len(vals)//2]) if vals else 0,
+        "median_yoy":   round(sum(yoys)/len(yoys), 1) if yoys else 0,
+    }
+    metros_cache = sorted(
+        [{"metro": m, "zip_count": len(z)} for m, z in metro_to_zips.items()],
+        key=lambda x: x["zip_count"], reverse=True,
+    )
+    _cached_tile_count = sum(1 for _ in TILE_DIR.rglob("*.png")) if TILE_DIR.exists() else 0
+
 
 def _build_appreciation_table() -> dict:
     """Compute historical appreciation for every ZIP using global cutoff dates."""
     if "home_values" not in dfs: return {}
-    hv       = dfs["home_values"].sort_values(["zip", "date"])
+    hv       = dfs["home_values"]  # already sorted by [zip, date] in load_all — no re-sort needed
     max_date = hv["date"].max()
 
     latest = (hv.groupby("zip")["value"].last()
@@ -115,7 +158,7 @@ def _build_appreciation_table() -> dict:
 def _build_heatmap() -> list:
     """Build ZIP-level map data: latest value, YoY change, coordinates."""
     if "home_values" not in dfs or zip_df is None: return []
-    hv       = dfs["home_values"].sort_values(["zip","date"])
+    hv       = dfs["home_values"]  # already sorted by [zip, date] in load_all — no re-sort needed
     max_date = hv["date"].max()
 
     latest = (hv.groupby("zip")["value"].last()
@@ -158,9 +201,10 @@ def _validate_zip(zip_code: str) -> str:
     return z
 
 def _zip_series(config: str, zip_code: str) -> dict:
-    if config not in dfs: return {}
-    df  = dfs[config]
-    sub = df[df["zip"] == zip_code].sort_values("date")
+    if config not in zip_index: return {}
+    bounds = zip_index[config].get(zip_code)
+    if bounds is None: return {}
+    sub = dfs[config].iloc[bounds[0]:bounds[1]]
     if sub.empty: return {}
     return {
         "dates":  sub["date"].dt.strftime("%Y-%m").tolist(),
@@ -171,7 +215,11 @@ def _zip_series(config: str, zip_code: str) -> dict:
 
 @app.get("/")
 def index():
-    return FileResponse("map.html")
+    return FileResponse(str(BASE_DIR / "map.html"))
+
+@app.get("/data")
+def data_page():
+    return FileResponse(str(BASE_DIR / "data.html"))
 
 @app.get("/api/heatmap")
 def get_heatmap():
@@ -182,28 +230,13 @@ def get_heatmap():
 
 @app.get("/api/stats")
 def get_stats():
-    if not heatmap_cache:
+    if not stats_cache:
         raise HTTPException(503, "No data — run: python ingest.py")
-    vals = sorted(r["v"] for r in heatmap_cache if r.get("v") is not None)
-    yoys = [r["y"] for r in heatmap_cache if r.get("y") is not None]
-    return JSONResponse(
-        content={
-            "total_zips":   len(heatmap_cache),
-            "median_value": round(vals[len(vals)//2]) if vals else 0,
-            "median_yoy":   round(sum(yoys)/len(yoys), 1) if yoys else 0,
-        },
-        headers={"Cache-Control": CACHE_1H},
-    )
+    return JSONResponse(content=stats_cache, headers={"Cache-Control": CACHE_1H})
 
 @app.get("/api/metros")
 def get_metros():
-    return JSONResponse(
-        content=sorted(
-            [{"metro": m, "zip_count": len(z)} for m, z in metro_to_zips.items()],
-            key=lambda x: x["zip_count"], reverse=True,
-        ),
-        headers={"Cache-Control": CACHE_24H},
-    )
+    return JSONResponse(content=metros_cache or [], headers={"Cache-Control": CACHE_24H})
 
 @app.get("/api/rank")
 def get_rank(
@@ -229,6 +262,9 @@ def get_rank(
 @app.get("/api/zip/{zip_code}")
 def get_zip(zip_code: str):
     zip_code = _validate_zip(zip_code)
+    if zip_code in zip_response_cache:
+        return JSONResponse(content=zip_response_cache[zip_code],
+                            headers={"Cache-Control": CACHE_1H})
     result   = {"zip": zip_code, "configs": {}}
 
     for name in ZIP_CONFIGS:
@@ -238,16 +274,14 @@ def get_zip(zip_code: str):
     if not result["configs"]:
         raise HTTPException(404, f"No data for ZIP {zip_code}")
 
-    if zip_meta is not None:
-        row = zip_meta[zip_meta["zip"] == zip_code]
-        if not row.empty:
-            r = row.iloc[0]
-            result.update({
-                "city":   _clean(r.get("city")),
-                "state":  _clean(r.get("state")),
-                "metro":  _clean(r.get("metro")),
-                "county": _clean(r.get("county")),
-            })
+    meta = zip_meta_dict.get(zip_code)
+    if meta:
+        result.update({
+            "city":   _clean(meta.get("city")),
+            "state":  _clean(meta.get("state")),
+            "metro":  _clean(meta.get("metro")),
+            "county": _clean(meta.get("county")),
+        })
 
     if zip_code in appreciation_table:
         result["appreciation"] = {
@@ -255,6 +289,7 @@ def get_zip(zip_code: str):
             if k.startswith("appreciation_")
         }
 
+    zip_response_cache[zip_code] = result
     return JSONResponse(content=result, headers={"Cache-Control": CACHE_1H})
 
 @app.get("/api/boundaries")
@@ -267,6 +302,36 @@ def get_boundaries():
         headers={"Content-Encoding": "gzip", "Cache-Control": CACHE_24H},
     )
 
+@app.get("/tiles/{layer}/{z}/{x}/{y}.png")
+async def proxy_tile(layer: str, z: int, x: int, y: int):
+    if layer not in TILE_SOURCES:
+        raise HTTPException(400, f"Invalid tile layer: {layer!r}")
+
+    cache_path = TILE_DIR / layer / str(z) / str(x) / f"{y}.png"
+    if cache_path.exists():
+        return FileResponse(str(cache_path), media_type="image/png",
+                            headers={"Cache-Control": CACHE_24H})
+
+    global _tile_client, _cached_tile_count
+    # Lazily create the persistent client on first tile request (must be inside the event loop)
+    if _tile_client is None:
+        _tile_client = httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "Beacon/1.0"})
+
+    url = TILE_SOURCES[layer].format(z=z, x=x, y=y)
+    try:
+        resp = await _tile_client.get(url)
+        resp.raise_for_status()
+    except Exception:
+        raise HTTPException(502, "Tile fetch failed")
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_bytes(resp.content)
+    _cached_tile_count += 1
+
+    return Response(content=resp.content, media_type="image/png",
+                    headers={"Cache-Control": CACHE_24H})
+
+
 @app.get("/health")
 def health():
     return {
@@ -275,4 +340,8 @@ def health():
         "appreciation_zips": len(appreciation_table),
         "metros": len(metro_to_zips),
         "configs_loaded": list(dfs.keys()),
+        "cached_tiles": _cached_tile_count,
     }
+
+# Static files mounted last so API routes take priority
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Sources — Beacon</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --header-h: 58px;
+      --bg:       #f4f5f7;
+      --surface:  #ffffff;
+      --border:   #e4e7ec;
+      --text:     #0d1117;
+      --muted:    #6b7280;
+      --green:    #6ee7b7;
+      --green-dk: #059669;
+      --red:      #fb7185;
+    }
+
+    html, body {
+      min-height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* ── Header ── */
+    #header {
+      position: fixed; top: 0; left: 0; right: 0; height: var(--header-h);
+      background: #0d1117; z-index: 100;
+      display: flex; align-items: center; padding: 0 1.5rem; gap: 1.25rem;
+    }
+    #header h1 {
+      font-size: 1.25rem; font-weight: 900;
+      letter-spacing: 0.22em; text-transform: uppercase; white-space: nowrap;
+    }
+    #header h1 a { color: white; text-decoration: none; }
+    #header h1 a span { color: var(--green); }
+
+    .nav-link {
+      padding: 7px 16px;
+      background: rgba(110,231,183,0.06); border: 1px solid rgba(110,231,183,0.28);
+      border-radius: 3px; color: rgba(110,231,183,0.75); font-size: 0.78rem; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      text-decoration: none; white-space: nowrap; transition: all 0.15s;
+    }
+    .nav-link:hover { border-color: rgba(110,231,183,0.6); color: var(--green); background: rgba(110,231,183,0.10); }
+    .nav-link.active { background: rgba(110,231,183,0.18); border-color: var(--green); color: var(--green); }
+
+    /* ── Page content ── */
+    #content {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: calc(var(--header-h) + 52px) 24px 72px;
+    }
+
+    /* ── Hero ── */
+    #hero { margin-bottom: 48px; }
+    #hero-eyebrow {
+      font-size: 0.63rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.14em; color: var(--green-dk); margin-bottom: 10px;
+    }
+    #hero h2 {
+      font-size: 2.1rem; font-weight: 900; color: var(--text);
+      letter-spacing: -0.03em; line-height: 1.15; margin-bottom: 14px;
+    }
+    #hero p {
+      font-size: 0.93rem; color: var(--muted); line-height: 1.75; max-width: 560px;
+    }
+
+    /* ── Cards ── */
+    #cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 20px;
+      margin-bottom: 52px;
+    }
+
+    .source-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .source-card:hover {
+      box-shadow: 0 8px 28px rgba(0,0,0,0.07);
+      transform: translateY(-2px);
+    }
+
+    .card-accent { height: 3px; flex-shrink: 0; }
+    .card-body   { padding: 22px 22px 20px; flex: 1; display: flex; flex-direction: column; }
+
+    .card-badge {
+      display: inline-flex; align-items: center;
+      font-size: 0.58rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 3px; margin-bottom: 14px; align-self: flex-start;
+    }
+
+    .card-title {
+      font-size: 1.1rem; font-weight: 900; color: var(--text);
+      letter-spacing: -0.02em; margin-bottom: 8px;
+    }
+
+    .card-desc {
+      font-size: 0.82rem; color: var(--muted); line-height: 1.68;
+      margin-bottom: 16px; flex: 1;
+    }
+
+    .card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+    .tag {
+      font-size: 0.61rem; font-weight: 700; padding: 3px 8px;
+      border-radius: 3px; letter-spacing: 0.04em; text-transform: uppercase;
+      background: var(--bg); color: var(--muted); border: 1px solid var(--border);
+    }
+
+    .card-meta {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px;
+      padding: 16px 0; border-top: 1px solid var(--border); margin-bottom: 18px;
+    }
+    .meta-label {
+      font-size: 0.58rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--muted); margin-bottom: 3px;
+    }
+    .meta-value { font-size: 0.78rem; font-weight: 700; color: var(--text); }
+
+    .card-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--green-dk);
+      text-decoration: none; transition: gap 0.15s;
+    }
+    .card-link:hover { gap: 10px; }
+    .card-link::after { content: "→"; }
+
+    /* ── Methodology ── */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px 32px;
+      margin-bottom: 20px;
+    }
+    .section.accent { border-left: 3px solid var(--green); }
+
+    .section-label {
+      font-size: 0.63rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.12em; color: var(--green-dk); margin-bottom: 20px;
+    }
+    .section-label.muted { color: var(--muted); }
+
+    .method-steps { display: grid; gap: 16px; }
+    .method-step  { display: flex; gap: 14px; align-items: flex-start; }
+
+    .step-num {
+      width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+      background: rgba(110,231,183,0.12); border: 1px solid rgba(110,231,183,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem; font-weight: 800; color: var(--green-dk);
+    }
+
+    .step-text { font-size: 0.83rem; color: var(--muted); line-height: 1.7; }
+    .step-text strong { color: var(--text); font-weight: 700; }
+
+    code {
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+      font-size: 0.84em;
+      background: var(--bg); color: var(--green-dk);
+      padding: 1px 6px; border-radius: 3px; border: 1px solid var(--border);
+    }
+
+    /* ── Limitations ── */
+    .limit-list { list-style: none; display: grid; gap: 10px; }
+    .limit-list li {
+      font-size: 0.83rem; color: var(--muted); line-height: 1.65;
+      padding-left: 18px; position: relative;
+    }
+    .limit-list li::before { content: "—"; position: absolute; left: 0; color: var(--border); }
+    .limit-list li strong { color: var(--text); font-weight: 700; }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      #content { padding-left: 16px; padding-right: 16px; }
+      #hero h2  { font-size: 1.6rem; }
+      .section  { padding: 20px 18px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <h1><a href="/">Bea<span>con</span></a></h1>
+  <a href="/" class="nav-link">← Map</a>
+  <a href="/data" class="nav-link active">Data Sources</a>
+</div>
+
+<div id="content">
+
+  <div id="hero">
+    <div id="hero-eyebrow">Transparency</div>
+    <h2>Where the data comes from</h2>
+    <p>Beacon combines three public datasets to build every chart, ranking, and trend on the map. All sources are free, publicly available, and updated monthly by their respective publishers.</p>
+  </div>
+
+  <div id="cards">
+
+    <!-- Zillow Research -->
+    <div class="source-card">
+      <div class="card-accent" style="background:#3b82f6"></div>
+      <div class="card-body">
+        <div class="card-badge" style="background:rgba(59,130,246,0.08);color:#2563eb;border:1px solid rgba(59,130,246,0.22)">Primary Source</div>
+        <div class="card-title">Zillow Research</div>
+        <div class="card-desc">Zillow's public research division releases monthly housing statistics at the ZIP code level — the most granular publicly available housing dataset in the U.S. All five metrics Beacon tracks come from this source.</div>
+        <div class="card-tags">
+          <span class="tag">Home Values</span>
+          <span class="tag">Rent</span>
+          <span class="tag">Median Sale</span>
+          <span class="tag">Days on Market</span>
+          <span class="tag">New Listings</span>
+        </div>
+        <div class="card-meta">
+          <div>
+            <div class="meta-label">Coverage</div>
+            <div class="meta-value">26,276 ZIPs</div>
+          </div>
+          <div>
+            <div class="meta-label">Frequency</div>
+            <div class="meta-value">Monthly</div>
+          </div>
+          <div>
+            <div class="meta-label">Home Values</div>
+            <div class="meta-value">Jan 2000 – now</div>
+          </div>
+          <div>
+            <div class="meta-label">Rent / Sales</div>
+            <div class="meta-value">2015 – now</div>
+          </div>
+        </div>
+        <a href="https://www.zillow.com/research/data/" target="_blank" rel="noopener" class="card-link">View source</a>
+      </div>
+    </div>
+
+    <!-- Census TIGER -->
+    <div class="source-card">
+      <div class="card-accent" style="background:#f59e0b"></div>
+      <div class="card-body">
+        <div class="card-badge" style="background:rgba(245,158,11,0.08);color:#b45309;border:1px solid rgba(245,158,11,0.22)">Boundaries</div>
+        <div class="card-title">Census TIGER/Line</div>
+        <div class="card-desc">The U.S. Census Bureau publishes TIGER/Line shapefiles containing ZIP Code Tabulation Area (ZCTA) boundary polygons — the geographic shapes drawn on the map for each ZIP code.</div>
+        <div class="card-tags">
+          <span class="tag">ZIP Polygons</span>
+          <span class="tag">Map Rendering</span>
+        </div>
+        <div class="card-meta">
+          <div>
+            <div class="meta-label">Coverage</div>
+            <div class="meta-value">All 50 states</div>
+          </div>
+          <div>
+            <div class="meta-label">Frequency</div>
+            <div class="meta-value">Annual</div>
+          </div>
+          <div>
+            <div class="meta-label">Format</div>
+            <div class="meta-value">Shapefile</div>
+          </div>
+          <div>
+            <div class="meta-label">ZCTAs</div>
+            <div class="meta-value">~33,000</div>
+          </div>
+        </div>
+        <a href="https://www.census.gov/geographies/mapping-files.html" target="_blank" rel="noopener" class="card-link">View source</a>
+      </div>
+    </div>
+
+    <!-- GeoNames -->
+    <div class="source-card">
+      <div class="card-accent" style="background:#14b8a6"></div>
+      <div class="card-body">
+        <div class="card-badge" style="background:rgba(20,184,166,0.08);color:#0d9488;border:1px solid rgba(20,184,166,0.22)">Geography</div>
+        <div class="card-title">GeoNames</div>
+        <div class="card-desc">An open geographic database providing coordinates, city names, and state associations for every U.S. ZIP code — used to center the map when you search a ZIP and populate the city labels in tooltips and panels.</div>
+        <div class="card-tags">
+          <span class="tag">Coordinates</span>
+          <span class="tag">City Names</span>
+          <span class="tag">State</span>
+          <span class="tag">Metro Area</span>
+        </div>
+        <div class="card-meta">
+          <div>
+            <div class="meta-label">Coverage</div>
+            <div class="meta-value">41,488 ZIPs</div>
+          </div>
+          <div>
+            <div class="meta-label">License</div>
+            <div class="meta-value">CC BY 4.0</div>
+          </div>
+          <div>
+            <div class="meta-label">Used for</div>
+            <div class="meta-value">Search & tooltips</div>
+          </div>
+          <div>
+            <div class="meta-label">Format</div>
+            <div class="meta-value">TSV</div>
+          </div>
+        </div>
+        <a href="https://www.geonames.org/" target="_blank" rel="noopener" class="card-link">View source</a>
+      </div>
+    </div>
+
+  </div>
+
+
+</div>
+</body>
+</html>

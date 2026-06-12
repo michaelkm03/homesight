@@ -2,109 +2,74 @@
 
 Interactive U.S. housing market map built on Zillow's public research data. Visualizes home values, rent, appreciation, and sales trends across 26,000+ ZIP codes.
 
-**Live features**
-- Choropleth map — 26K+ ZIPs colored by median home value or year-over-year change
-- ZIP detail panel — home value, rent, median sale, and new listing trend charts with YoY callouts
-- Area Rankings — top-appreciating ZIPs in any of 927 metro areas over 1, 3, 5, 10, or 20 years
-- Listing links — one-click to Zillow and Redfin for-sale listings from any selected ZIP
-- Boundary caching — ZIP polygons cached locally (IndexedDB, 1-hour TTL) for instant reloads
-- Landing prompt — new visitors enter a starting ZIP; returning visitors resume their last viewed ZIP
+## Features
 
----
+- **Choropleth map** — 26K+ ZIPs colored by median home value or year-over-year change
+- **ZIP detail panel** — home value, rent, median sale, and new listing trend charts with YoY callouts
+- **Appreciation history** — 1, 3, 5, 10, and 20-year appreciation bars per ZIP with investment signal badge
+- **Listing links** — one-click to Zillow and Redfin for-sale listings from any selected ZIP
+- **Area Rankings** — top-appreciating ZIPs across 927 metro areas *(hidden from UI — fully functional, returning to this later. To re-enable: remove `#rankings-btn { display: none; }` from `map.html`)*
+- **Tile proxy** — CartoDB map tiles proxied and disk-cached locally; zero CDN calls after first visit
+- **Zero external dependencies** — Leaflet.js and Chart.js vendored in `static/`; boundaries cached in IndexedDB
 
 ## Tech Stack
 
 | Layer | Tools |
 |-------|-------|
 | Backend | FastAPI, pandas, geopandas, uvicorn |
-| Frontend | Leaflet.js, Chart.js, vanilla JS |
-| Data format | Parquet, gzip GeoJSON |
-| Map tiles | CartoDB Positron (light + labels split) |
+| Frontend | Leaflet.js, Chart.js, vanilla JS (all vendored) |
+| Data | Parquet, gzip GeoJSON |
+| Tiles | CartoDB Positron — proxied and disk-cached |
 
----
+## Quick Start
 
-## Setup
-
-### 1. Install dependencies
-
+**1. Install dependencies**
 ```bash
-pip install fastapi uvicorn pandas geopandas pyarrow pytest httpx
+pip install fastapi uvicorn pandas geopandas pyarrow httpx
 ```
 
-### 2. Ingest data (one-time, ~5 min)
-
-Downloads ~200 MB of public data from Zillow Research, Census TIGER, and GeoNames.
-
+**2. Ingest data** (~5 min, one-time)
 ```bash
 python ingest.py
 ```
 
 Expected output:
 ```
-  zips.parquet                 saved (41,488 ZIPs)
-  zip_meta.parquet             saved (26,276 ZIPs, 927 metros)
-  home_values                  saved (6,378,211 rows, 54.9 MB)
-  rentals                      saved (435,221 rows, 3.9 MB)
-  sales                        saved (359,499 rows, 1.2 MB)
-  market_temp                  saved (3,224,583 rows, 4.4 MB)
-  for_sale_listings            saved (723,223 rows, 1.2 MB)
-  county                       saved (696,792 rows, 6.5 MB)
-  metro                        saved (233,554 rows, 2.2 MB)
-  boundaries.geojson.gz        saved (26,276 ZIPs, ~28 MB gz)
-
+  home_values: 6,378,211 rows
+  rentals: 435,221 rows
+  ...
+  boundaries.geojson.gz saved (26,276 ZIPs)
 Done. Run: uvicorn server:app --reload
 ```
 
-To refresh data:
+To refresh with the latest Zillow data:
 ```bash
 python ingest.py --refresh
 ```
 
-### 3. Start the server
-
+**3. Start**
 ```bash
 uvicorn server:app --reload
 ```
 
 Open **http://localhost:8000**
 
----
+## API
 
-## Usage
-
-**Map**
-- Hover any ZIP polygon to see value and YoY change in a tooltip
-- Click to open the detail panel with trend charts and appreciation history
-- Switch metrics (home value / YoY%) via the legend dropdown (bottom-left)
-- Search any ZIP in the top-right search bar
-
-**Rankings**
-1. Click **Rankings** in the header
-2. Type a metro area name (e.g. `Seattle` or `Austin`)
-3. Select a time period (1yr – 20yr or current value)
-4. Click any row to zoom to that ZIP and open its detail panel
-
-**Detail panel**
-- Current home value, YoY change, investment strength badge
-- Stats grid: rent, median sale price, market temp, new listings, appreciation by period
-- Expandable trend charts — each shows latest value and YoY inline
-- Zillow and Redfin listing links for the selected ZIP
-
----
-
-## API Reference
-
-All endpoints return JSON. Heatmap and stats cached 1 hour; boundaries cached 24 hours.
+All endpoints return JSON. Stats and heatmap cached 1 hour; boundaries and tiles cached 24 hours.
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/heatmap` | All ZIPs with value, YoY, coordinates |
+| `GET /` | Map page |
+| `GET /data` | Data sources page |
+| `GET /api/heatmap` | All ZIPs with value, YoY%, and coordinates |
 | `GET /api/stats` | National median value, median YoY, ZIP count |
 | `GET /api/zip/{zip}` | Full time-series configs + appreciation for one ZIP |
-| `GET /api/rank?metro=&metric=&limit=` | ZIPs in metro ranked by metric |
+| `GET /api/rank?metro=&metric=&limit=` | ZIPs in a metro ranked by metric |
 | `GET /api/metros` | All metros sorted by ZIP count |
 | `GET /api/boundaries` | GeoJSON polygons for all ZIPs (gzip, ~28 MB) |
-| `GET /health` | Server status and loaded dataset summary |
+| `GET /tiles/{layer}/{z}/{x}/{y}.png` | Tile proxy — `layer` is `base` or `labels` |
+| `GET /health` | Server status, dataset summary, cached tile count |
 
 **`/api/rank` parameters**
 
@@ -114,7 +79,52 @@ All endpoints return JSON. Heatmap and stats cached 1 hour; boundaries cached 24
 | `metric` | `appreciation_5y` | `appreciation_1y` `appreciation_3y` `appreciation_5y` `appreciation_10y` `appreciation_20y` `current_value` |
 | `limit` | `50` | 1–999 |
 
----
+## Performance
+
+All hot-path operations are O(1) or pre-computed at startup across 10M+ rows.
+
+- **Binary search index** — `np.searchsorted` builds a `{zip: (start, end)}` index at boot; ZIP time-series lookups use `df.iloc` slices instead of boolean scans
+- **Response cache** — ZIP panel responses stored in memory after first open; repeated opens are instant
+- **Pre-computed stats** — `/api/stats` and `/api/metros` computed once at boot, returned by reference
+- **Smart map restyle** — ZIP selection updates 2 Leaflet layers instead of all 26K
+- **Deferred close restyle** — panel close resets 1 layer immediately; full opacity restore deferred to `requestAnimationFrame`
+- **Client-side ZIP cache** — `zipDataCache` in browser; re-opening a ZIP skips the network fetch entirely
+- **Persistent tile client** — `httpx.AsyncClient` lazily initialized and reused across tile requests
+
+## Data Sources
+
+| Source | Provides | History |
+|--------|---------|---------|
+| [Zillow Research](https://www.zillow.com/research/data/) | Home values (ZHVI), rent (ZORI), median sale, market temp, new listings | 2000–present |
+| [Census TIGER/Line](https://www.census.gov/geographies/mapping-files.html) | ZIP boundary polygons (ZCTA shapefiles) | Annual release |
+| [GeoNames](https://www.geonames.org/) | ZIP coordinates, city names, state, metro area | CC BY 4.0 |
+
+## Project Structure
+
+```
+zillow-trends/
+├── ingest.py               # Data pipeline — downloads and processes all sources
+├── server.py               # FastAPI backend — API, caching, tile proxy
+├── map.html                # Map frontend — Leaflet, ZIP panel, charts
+├── data.html               # Data sources page
+├── LAUNCH.md               # Launch and traffic strategy
+├── static/                 # Vendored JS/CSS (no CDN)
+│   ├── leaflet.js
+│   ├── leaflet.css
+│   └── chart.umd.min.js
+├── tests/
+│   └── test_server.py      # 22 tests covering all endpoints and edge cases
+└── data/                   # Generated by ingest.py (gitignored)
+    ├── home_values.parquet
+    ├── rentals.parquet
+    ├── sales.parquet
+    ├── market_temp.parquet
+    ├── for_sale_listings.parquet
+    ├── zip_meta.parquet
+    ├── zips.parquet
+    ├── boundaries.geojson.gz
+    └── tiles/              # Tile cache — populated at runtime (gitignored)
+```
 
 ## Tests
 
@@ -123,46 +133,3 @@ pytest tests/ -v
 ```
 
 22 tests covering all endpoints, data validation, sort correctness, and edge cases. Tests skip gracefully if data has not been ingested.
-
----
-
-## Project Structure
-
-```
-zillow-trends/
-├── ingest.py           # Data pipeline — downloads and processes all sources
-├── server.py           # FastAPI backend — API endpoints, in-memory caching
-├── map.html            # Frontend — map, rankings panel, ZIP detail, charts
-├── tests/
-│   └── test_server.py  # API test suite (22 tests)
-└── data/               # Generated by ingest.py (gitignored)
-    ├── home_values.parquet
-    ├── rentals.parquet
-    ├── sales.parquet
-    ├── market_temp.parquet
-    ├── for_sale_listings.parquet
-    ├── county.parquet
-    ├── metro.parquet
-    ├── zip_meta.parquet
-    ├── zips.parquet
-    └── boundaries.geojson.gz
-```
-
----
-
-## Data Sources
-
-| Source | Metrics |
-|--------|---------|
-| [Zillow Research](https://www.zillow.com/research/data/) | ZHVI (home values), ZORI (rent), median sale price, market temperature index, new listings — monthly, 2000–present |
-| [Census TIGER/Line](https://www.census.gov/geographies/mapping-files.html) | ZCTA ZIP boundary polygons |
-| [GeoNames](https://www.geonames.org/) | ZIP coordinates, city, state |
-
----
-
-## Known Limitations
-
-- **ZIPs are coarse** — one ZIP can span diverse neighborhoods; Census tract data would be more granular but isn't published by Zillow.
-- **ZHVI is a smoothed index** — not raw transaction prices; rapid market changes may lag 1–2 months.
-- **~4,700 ZIPs without metro** — rural, PO Box, and military ZIPs are excluded from Rankings.
-- **Rental and sales data** start 2015 and 2018 respectively; home values go back to January 2000.

@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Beacon</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/leaflet.css" />
+  <script src="/static/leaflet.js"></script>
+  <script src="/static/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -47,6 +47,16 @@
     }
     #rankings-btn:hover { border-color: rgba(110,231,183,0.6); color: var(--green); background: rgba(110,231,183,0.10); }
     #rankings-btn.active { background: rgba(110,231,183,0.18); border-color: var(--green); color: var(--green); }
+    #rankings-btn { display: none; } /* hidden — feature complete, returning to this later */
+
+    #data-btn {
+      padding: 7px 16px;
+      background: rgba(110,231,183,0.06); border: 1px solid rgba(110,231,183,0.28);
+      border-radius: 3px; color: rgba(110,231,183,0.75); font-size: 0.78rem; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      text-decoration: none; white-space: nowrap; transition: all 0.15s;
+    }
+    #data-btn:hover { border-color: rgba(110,231,183,0.6); color: var(--green); background: rgba(110,231,183,0.10); }
 
     #search-wrap { position: relative; margin-left: auto; }
     #zip-input {
@@ -430,6 +440,11 @@
       transition: color 0.15s;
     }
     #landing-skip:hover { color: rgba(255,255,255,0.45); }
+
+    /* Leaflet zoom animation: 150ms instead of 250ms — less time showing blurry scaled tiles */
+    .leaflet-zoom-anim .leaflet-zoom-animated { transition-duration: 0.15s !important; }
+    /* Tile fade-in: 100ms instead of 200ms — new tiles appear faster after zoom settles */
+    .leaflet-fade-anim .leaflet-tile-loaded   { transition: opacity 0.1s linear !important; }
   </style>
 </head>
 <body>
@@ -451,6 +466,7 @@
 <div id="header">
   <h1>Bea<span>con</span></h1>
   <button id="rankings-btn" onclick="toggleRankings()">Rankings</button>
+  <a href="/data" id="data-btn">Data Sources</a>
   <div id="search-wrap">
     <input id="zip-input" type="text" maxlength="5" placeholder="Search ZIP code…" />
     <button id="zip-go" onclick="jumpToZip()">→</button>
@@ -669,15 +685,28 @@ const DEFAULT_CENTER = [47.52, -122.37];
 
 // ── Map init ──────────────────────────────────────────────────────────────────
 map = L.map("map", { center: DEFAULT_CENTER, zoom: 11, zoomControl: true });
-// Base tiles (no labels) — polygons render on top of streets but under labels
-L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
+
+// Custom pane above overlayPane (400) so labels render on top of ZIP polygons
+map.createPane("labelsPane");
+map.getPane("labelsPane").style.zIndex = 450;
+map.getPane("labelsPane").style.pointerEvents = "none";
+map.getPane("labelsPane").style.willChange = "transform"; // GPU layer — zoom transforms skip repaint
+
+// Base tiles — proxied and cached locally by /tiles/base/
+L.tileLayer("/tiles/base/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap © CARTO",
   maxZoom: 19,
+  updateWhenZooming: false,
+  keepBuffer: 4,
 }).addTo(map);
 
-// Label overlay — renders above polygons so city/street names stay readable
-const labelLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
-  maxZoom: 19, pane: "shadowPane",
+// Label overlay — rendered above ZIP polygons via labelsPane (z-index 450)
+// updateWhenZooming: false prevents tile flicker during zoom animation
+const labelLayer = L.tileLayer("/tiles/labels/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  pane: "labelsPane",
+  updateWhenZooming: false,
+  keepBuffer: 4,
 });
 
 // ── Tooltip ───────────────────────────────────────────────────────────────────
@@ -763,9 +792,7 @@ function renderBoundaries() {
 
       layer.on("click", () => {
         if (activeLayer === layer) { closePanel(); return; }
-        activeLayer = layer;
-        geoLayer.setStyle(f => featureStyle(f, f.properties.zip === zip));
-        layer.bringToFront();
+        highlightZip(zip);
         openPanel(zip);
       });
     },
@@ -773,10 +800,21 @@ function renderBoundaries() {
 }
 
 // ── Highlight a ZIP without opening the panel ─────────────────────────────────
+// Smart: no-op if ZIP unchanged; swaps only 2 layers when switching (not all 26K)
 function highlightZip(zip) {
-  activeLayer = zipToLayer[zip] || null;
+  const newLayer = zipToLayer[zip] || null;
+  if (newLayer === activeLayer) return; // already correct — skip restyle
+  const prev = activeLayer;
+  activeLayer = newLayer;
   if (!geoLayer) return;
-  geoLayer.setStyle(f => featureStyle(f, f.properties.zip === zip));
+  if (prev === null) {
+    // First selection — dim everything once
+    geoLayer.setStyle(f => featureStyle(f, f.properties.zip === zip));
+  } else {
+    // Switching ZIPs — only update the two affected layers
+    prev.setStyle(featureStyle(prev.feature, false));
+    if (newLayer) newLayer.setStyle(featureStyle(newLayer.feature, true));
+  }
   if (activeLayer) activeLayer.bringToFront();
 }
 
@@ -866,8 +904,12 @@ async function boot() {
   labelLayer.addTo(map);
 
   let _zoomTimer = null;
+  let _lastWeightTier = null;
   map.on("zoomend", () => {
     if (!geoLayer) return;
+    const tier = strokeWeight();
+    if (tier === _lastWeightTier) return; // weight unchanged — skip restyle
+    _lastWeightTier = tier;
     clearTimeout(_zoomTimer);
     _zoomTimer = setTimeout(() => {
       geoLayer.setStyle(f => featureStyle(f, activeLayer?.feature === f));
@@ -921,6 +963,8 @@ async function boot() {
 }
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
+const zipDataCache = {}; // client-side cache — re-opening a ZIP skips the fetch entirely
+
 async function openPanel(zip) {
   localStorage.setItem(LAST_ZIP_KEY, zip);
   highlightZip(zip);
@@ -938,9 +982,13 @@ async function openPanel(zip) {
   document.getElementById("map-msg").style.display = "none";
 
   try {
-    const res  = await fetch("/api/zip/" + zip);
-    if (!res.ok) throw new Error("No data");
-    const data = await res.json();
+    let data = zipDataCache[zip];
+    if (!data) {
+      const res = await fetch("/api/zip/" + zip);
+      if (!res.ok) throw new Error("No data");
+      data = await res.json();
+      zipDataCache[zip] = data;
+    }
 
     document.getElementById("panel-loc").textContent = [
       data.city && data.state ? `${data.city}, ${data.state}` : "",
@@ -956,11 +1004,19 @@ async function openPanel(zip) {
   }
 }
 
+// Deselects 1 layer immediately so the close animation isn't blocked by a 26K restyle;
+// full opacity restore is deferred to the next frame after the CSS transition starts.
 function closePanel() {
+  const prev = activeLayer;
   activeLayer = null;
-  geoLayer?.setStyle(f => featureStyle(f));
   document.getElementById("panel").classList.remove("open");
   document.getElementById("map").classList.remove("panel-open");
+  if (prev) {
+    prev.setStyle(featureStyle(prev.feature, false)); // instantly deselect
+    requestAnimationFrame(() => { // restore dimmed layers after close animation starts
+      if (!activeLayer && geoLayer) geoLayer.setStyle(f => featureStyle(f));
+    });
+  }
 }
 
 // ── Hero stat ────────────────────────────────────────────────────────────────
