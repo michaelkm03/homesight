@@ -1042,7 +1042,7 @@ function renderHero(data) {
   hero.style.display = "block";
 
   const zip = data.zip;
-  document.getElementById("link-zillow").href = `https://www.zillow.com/homes/for_sale/${zip}_rb/`;
+  document.getElementById("link-zillow").href = `https://www.zillow.com/homes/${zip}_rb/`;
   document.getElementById("link-redfin").href = `https://www.redfin.com/zipcode/${zip}`;
   document.getElementById("listing-links").style.display = "flex";
 }
@@ -1353,7 +1353,7 @@ function renderRankingsTable() {
     tr.innerHTML = `
       <td class="rank-num">${i+1}</td>
       <td class="rank-zip">${r.zip}<span class="rank-links">
-        <a class="rank-link rank-link-z" href="https://www.zillow.com/homes/for_sale/${r.zip}_rb/" target="_blank" rel="noopener" onclick="event.stopPropagation()">Z</a>
+        <a class="rank-link rank-link-z" href="https://www.zillow.com/homes/${r.zip}_rb/" target="_blank" rel="noopener" onclick="event.stopPropagation()">Z</a>
         <a class="rank-link rank-link-r" href="https://www.redfin.com/zipcode/${r.zip}" target="_blank" rel="noopener" onclick="event.stopPropagation()">R</a>
       </span></td>
       <td class="rank-city">${r.city || "—"}</td>
