@@ -696,8 +696,9 @@ function initLanding() {
 
 function landingSubmit() {
   const raw = document.getElementById("landing-zip").value.trim();
-  const zip = raw.padStart(5, "0");
   const err = document.getElementById("landing-err");
+  if (!raw) { landingSkip(); return; }
+  const zip = raw.padStart(5, "0");
   if (!/^\d{5}$/.test(zip)) {
     err.textContent = "Enter a valid 5-digit ZIP."; return;
   }
