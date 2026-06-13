@@ -270,26 +270,11 @@
       z-index: 950; display: none;
     }
     /* ── Loading mark ── */
-    #lm-shadow, #lm-path {
-      stroke-dasharray: 122; stroke-dashoffset: 122;
-      animation: lm-draw 2.2s ease-in-out infinite;
-    }
-    #lm-arrow, #lm-arr-shadow { opacity: 0; animation: lm-arrow 2.2s ease-in-out infinite; }
-    #loading-mark { animation: lm-glow 2.2s ease-in-out infinite; }
-    @keyframes lm-draw {
-      0%        { stroke-dashoffset: 122; }
-      58%       { stroke-dashoffset: 0; }
-      100%      { stroke-dashoffset: 0; }
-    }
-    @keyframes lm-arrow {
-      0%, 56%   { opacity: 0; }
-      68%, 84%  { opacity: 1; }
-      96%, 100% { opacity: 0; }
-    }
+    #loading-mark { animation: lm-glow 1.8s ease-in-out infinite; }
     @keyframes lm-glow {
-      0%, 42%   { filter: drop-shadow(0 0 8px rgba(110,231,183,0.25)); }
-      62%, 72%  { filter: drop-shadow(0 0 24px rgba(110,231,183,1.0)) drop-shadow(0 0 48px rgba(110,231,183,0.45)); }
-      100%      { filter: drop-shadow(0 0 8px rgba(110,231,183,0.25)); }
+      0%, 100% { filter: drop-shadow(0 0 3.6px rgba(110,231,183,0.20)); }
+      50%       { filter: drop-shadow(0 0 10px rgba(110,231,183,0.45))
+                          drop-shadow(0 0 20px rgba(110,231,183,0.18)); }
     }
 
     /* ── Rankings panel ── */
@@ -551,15 +536,13 @@
 
 <div id="loading-bar"></div>
 <div id="loading-msg">
-  <svg id="loading-mark" viewBox="0 0 90 68" width="180" height="136" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <!-- depth shadow -->
-    <polyline id="lm-shadow" points="6,66 25,36 36,49 59,18 70,29 79,19"
+  <svg id="loading-mark" viewBox="0 -6 96 74" width="192" height="148" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <polyline points="6,66 25,36 36,49 59,18 70,27 80,12"
       stroke="#1a5c3a" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <polygon id="lm-arr-shadow" points="88,9 83,23 74,15" fill="#1a5c3a"/>
-    <!-- main -->
-    <polyline id="lm-path" points="3,63 22,33 33,46 56,15 67,26 76,16"
+    <polygon points="88,0 86,16 74,8" fill="#1a5c3a"/>
+    <polyline points="3,63 22,33 33,46 56,15 67,24 77,9"
       stroke="#6ee7b7" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <polygon id="lm-arrow" points="85,6 80,20 71,12" fill="#6ee7b7"/>
+    <polygon points="85,-3 83,13 71,5" fill="#6ee7b7"/>
   </svg>
 </div>
 <div id="map"></div>
