@@ -644,6 +644,7 @@ function landingSubmit() {
     err.textContent = "Enter a valid 5-digit ZIP."; return;
   }
   err.textContent = "";
+  gtag("event", "zip_search", { zip_code: zip, source: "landing" });
   localStorage.setItem(VISIT_KEY, String(Date.now()));
   document.getElementById("landing-overlay").classList.add("hidden");
   _pendingZip = zip;
@@ -805,6 +806,7 @@ function renderBoundaries() {
 
       layer.on("click", () => {
         if (activeLayer === layer) { closePanel(); return; }
+        gtag("event", "zip_click", { zip_code: zip, source: "map" });
         highlightZip(zip);
         openPanel(zip);
       });
@@ -834,6 +836,7 @@ function highlightZip(zip) {
 // ── Change metric ─────────────────────────────────────────────────────────────
 function changeMetric() {
   currentMetric = document.getElementById("legend-select").value;
+  gtag("event", "metric_change", { metric: currentMetric });
   buildLegend(currentMetric);
   if (geoLayer) {
     geoLayer.setStyle(feature => featureStyle(feature,
@@ -847,6 +850,7 @@ function jumpToZip() {
   if (zip.length !== 5) return;
   const d = valueMap[zip];
   if (d?.lat && d?.lng) {
+    gtag("event", "zip_search", { zip_code: zip, source: "header" });
     map.setView([d.lat, d.lng], 12, { animate: true });
     openPanel(zip);
   } else {
@@ -1305,6 +1309,7 @@ document.addEventListener("DOMContentLoaded", () => {
         input.value = m.metro;
         selectedMetro = m.metro;
         sugg.style.display = "none";
+        gtag("event", "metro_search", { metro: m.metro });
         loadRankings();
       };
       sugg.appendChild(div);
