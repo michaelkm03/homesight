@@ -485,19 +485,22 @@
       margin: 14px 0 10px; letter-spacing: 0.1em;
     }
     #landing-loc-btn {
-      width: 100%; padding: 9px; background: transparent;
-      border: 1px solid rgba(110,231,183,0.2); border-radius: 3px;
-      color: rgba(255,255,255,0.45); font-size: 0.72rem; font-weight: 600;
+      width: 100%; padding: 9px; background: rgba(110,231,183,0.06);
+      border: 1px solid rgba(110,231,183,0.35); border-radius: 3px;
+      color: rgba(255,255,255,0.75); font-size: 0.72rem; font-weight: 600;
       letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
       transition: all 0.15s; font-family: inherit;
     }
-    #landing-loc-btn:hover { border-color: rgba(110,231,183,0.45); color: rgba(255,255,255,0.8); }
+    #landing-loc-btn:hover { border-color: rgba(110,231,183,0.65); color: #fff; background: rgba(110,231,183,0.12); }
+    #landing-loc-btn:active { transform: scale(0.98); background: rgba(110,231,183,0.18); }
     #landing-skip {
       margin-top: 16px; text-align: center; font-size: 0.65rem;
-      color: rgba(255,255,255,0.2); cursor: pointer; letter-spacing: 0.06em;
-      transition: color 0.15s;
+      color: rgba(255,255,255,0.4); cursor: pointer; letter-spacing: 0.06em;
+      transition: color 0.15s; text-decoration: underline; text-underline-offset: 3px;
+      text-decoration-color: rgba(255,255,255,0.18);
     }
-    #landing-skip:hover { color: rgba(255,255,255,0.45); }
+    #landing-skip:hover { color: rgba(255,255,255,0.7); text-decoration-color: rgba(255,255,255,0.4); }
+    #landing-skip:active { color: rgba(255,255,255,0.9); }
 
     /* Leaflet zoom animation: 150ms instead of 250ms — less time showing blurry scaled tiles */
     .leaflet-zoom-anim .leaflet-zoom-animated { transition-duration: 0.15s !important; }
