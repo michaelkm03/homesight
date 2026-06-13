@@ -696,8 +696,7 @@ let _pendingZip     = null;
 let _pendingLocation = null;
 
 function isNewVisit() {
-  const last = parseInt(localStorage.getItem(VISIT_KEY) || "0");
-  return Date.now() - last > TTL;
+  return !sessionStorage.getItem(VISIT_KEY);
 }
 
 function initLanding() {
@@ -719,14 +718,14 @@ function landingSubmit() {
   }
   err.textContent = "";
   gtag("event", "zip_search", { zip_code: zip, source: "landing" });
-  localStorage.setItem(VISIT_KEY, String(Date.now()));
+  sessionStorage.setItem(VISIT_KEY, "1");
   document.getElementById("landing-overlay").classList.add("hidden");
   _pendingZip = zip;
   if (_bootDone) applyPendingZip();
 }
 
 function landingSkip() {
-  localStorage.setItem(VISIT_KEY, String(Date.now()));
+  sessionStorage.setItem(VISIT_KEY, "1");
   document.getElementById("landing-overlay").classList.add("hidden");
 }
 
@@ -988,7 +987,7 @@ function landingUseLocation() {
     pos => {
       err.textContent = "";
       const { latitude: lat, longitude: lng } = pos.coords;
-      localStorage.setItem(VISIT_KEY, String(Date.now()));
+      sessionStorage.setItem(VISIT_KEY, "1");
       document.getElementById("landing-overlay").classList.add("hidden");
       if (_bootDone) {
         map.setView([lat, lng], 11, { animate: true });
