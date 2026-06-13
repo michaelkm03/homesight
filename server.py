@@ -233,6 +233,11 @@ def index():
 def data_page():
     return FileResponse(str(BASE_DIR / "data.html"))
 
+@app.get("/BingSiteAuth.xml", response_class=Response)
+def bing_verify():
+    content = """<?xml version="1.0"?>\n<users>\n  <user>4A2C6C488B577A3436C0EBF8DC12529C</user>\n</users>"""
+    return Response(content=content, media_type="application/xml")
+
 @app.get("/sitemap.xml", response_class=Response)
 def sitemap():
     content = """<?xml version="1.0" encoding="UTF-8"?>
