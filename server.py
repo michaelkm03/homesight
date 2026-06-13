@@ -2,8 +2,11 @@
 server.py — HomeSight API
 Serves ZIP-level housing trend data from Zillow Research public CSVs.
 """
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+import subprocess
+import time
 
 import httpx
 import numpy as np
@@ -26,6 +29,15 @@ TILE_SOURCES = {
     "base":   "https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png",
     "labels": "https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png",
 }
+
+_SERVER_START   = time.time()
+_START_ISO      = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+try:
+    _VERSION = subprocess.check_output(
+        ["git", "rev-parse", "--short", "HEAD"], cwd=BASE_DIR, stderr=subprocess.DEVNULL
+    ).decode().strip()
+except Exception:
+    _VERSION = "unknown"
 
 app = FastAPI(title="HomeSight API", version="1.0.0")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -352,14 +364,42 @@ async def proxy_tile(layer: str, z: int, x: int, y: int):
 
 @app.get("/health")
 def health():
-    return {
-        "status": "ok",
-        "heatmap_zips": len(heatmap_cache) if heatmap_cache else 0,
+    failing = []
+    # 25,000 floor: Zillow dataset has ~26,276 ZIPs; threshold catches major data loss
+    # without false-alerting on minor fluctuations as Zillow adds/removes ZIPs over time
+    if not heatmap_cache or len(heatmap_cache) < 25000:
+        failing.append(f"heatmap_zips={len(heatmap_cache) if heatmap_cache else 0} (min 25000)")
+    if len(appreciation_table) < 1000:
+        failing.append(f"appreciation_zips={len(appreciation_table)} (min 1000)")
+    if "home_values" not in dfs:
+        failing.append("config home_values not loaded")
+    if "rentals" not in dfs:
+        failing.append("config rentals not loaded")
+    if len(metro_to_zips) < 10:
+        failing.append(f"metros={len(metro_to_zips)} (min 10)")
+
+    data_as_of = None
+    if "home_values" in dfs:
+        try:
+            data_as_of = dfs["home_values"]["date"].max().strftime("%Y-%m-%d")
+        except Exception:
+            pass
+
+    body = {
+        "status":            "ok" if not failing else "degraded",
+        "version":           _VERSION,
+        "started_at":        _START_ISO,
+        "uptime_seconds":    int(time.time() - _SERVER_START),
+        "data_as_of":        data_as_of,
+        "heatmap_zips":      len(heatmap_cache) if heatmap_cache else 0,
         "appreciation_zips": len(appreciation_table),
-        "metros": len(metro_to_zips),
-        "configs_loaded": list(dfs.keys()),
-        "cached_tiles": _cached_tile_count,
+        "metros":            len(metro_to_zips),
+        "configs_loaded":    list(dfs.keys()),
+        "cached_tiles":      _cached_tile_count,
+        "failing_checks":    failing,
     }
+    status_code = 200 if not failing else 503
+    return JSONResponse(content=body, status_code=status_code)
 
 # Static files mounted last so API routes take priority
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
