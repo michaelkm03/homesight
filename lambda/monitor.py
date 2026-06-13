@@ -27,7 +27,7 @@ MIN_HEATMAP_ZIPS = 25_000
 def _get(path: str) -> tuple[int, dict]:
     url = f"{SITE_URL}{path}"
     try:
-        with urllib.request.urlopen(url, timeout=15) as resp:
+        with urllib.request.urlopen(url, timeout=5) as resp:
             return resp.status, json.loads(resp.read())
     except urllib.error.HTTPError as e:
         return e.code, {}
