@@ -137,15 +137,12 @@ Each page must:
 
 ### Site Readiness
 - [x] **P1** — Favicon — confirmed present
-- [ ] **P2** — OG/social meta tags — title, description, image for rich previews on Reddit/Twitter/Slack
-  - Add to `<head>` in map.html: `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card`
-  - og:image should be a screenshot of the map (1200x630px ideal)
+- [x] **P2** — OG/social meta tags — deployed 2026-06-12, verified at opengraph.xyz
 - [x] **P3** — Uptime monitoring — AWS Lambda + EventBridge + SNS, runs every 5 min, emails michaelkm03@gmail.com on failure (deployed 2026-06-12)
   - Lambda: `homesight-monitor` (us-west-2)
   - SNS topic: `arn:aws:sns:us-west-2:005097885341:homesight-alerts`
   - Checks: /health, /api/zip/98101, /api/heatmap
-- [ ] **P4** — Bing Webmaster Tools — indexes homesight.live for Bing/DuckDuckGo
-  - Go to bing.com/webmasters → Add site → verify via auto-import from Google Search Console
+- [x] **P4** — Bing Webmaster Tools — verified 2026-06-12, homesight.live indexed for Bing/DuckDuckGo
 - [ ] **P5** — GA4 event tracking — track ZIP searches, map interactions, chart views
   - Add `gtag('event', ...)` calls for key user actions in map.html
 - [ ] **P6** — Pre-write launch posts — draft all copy before launch day
