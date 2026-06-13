@@ -927,7 +927,9 @@ async function boot() {
   setLoading(40);
 
   // ── Boundaries: use IndexedDB cache when returning within 1 hour ─────────────
-  document.getElementById("loading-msg").style.display = "block";
+  const loadingEl = document.getElementById("loading-msg");
+  loadingEl.style.opacity = "0.2";
+  loadingEl.style.display = "block";
   let geojson = null;
 
   if (!newVisit) {
@@ -939,15 +941,31 @@ async function boot() {
     const bRes = await fetch("/api/boundaries");
     if (!bRes.ok) {
       setMsg("⚠ Boundaries missing — run: python ingest.py", true);
-      document.getElementById("loading-msg").style.display = "none";
+      loadingEl.style.display = "none";
       setLoading(0); return;
     }
-    geojson = await bRes.json();
+    // Stream body — drive loadingEl opacity 0.2 → 1.0 based on bytes received
+    const contentLength = +bRes.headers.get("Content-Length") || 0;
+    const reader = bRes.body.getReader();
+    const chunks = [];
+    let received = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      if (contentLength)
+        loadingEl.style.opacity = String(0.2 + Math.min(received / contentLength, 1) * 0.8);
+    }
+    const all = new Uint8Array(received);
+    let pos = 0;
+    for (const c of chunks) { all.set(c, pos); pos += c.length; }
+    geojson = JSON.parse(new TextDecoder().decode(all));
     idbSet(IDB_BOUNDS, { ts: Date.now(), data: geojson }); // cache in background
   }
 
   window._geojson = geojson;
-  document.getElementById("loading-msg").style.display = "none";
+  loadingEl.style.display = "none";
   setLoading(80);
 
   renderBoundaries();
