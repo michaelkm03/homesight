@@ -196,6 +196,18 @@ def _build_heatmap() -> list:
     latest["y5"] = ((latest["v"] - latest["old"]) / latest["old"] * 100).where(latest["old"] > 0).round(1)
     latest    = latest.drop(columns=["old"])
 
+    cutoff_10y = max_date - pd.DateOffset(months=120)
+    old_10y    = hv[hv["date"] <= cutoff_10y].groupby("zip")["value"].last().rename("old").reset_index()
+    latest     = latest.merge(old_10y, left_on="z", right_on="zip", how="left").drop(columns=["zip"])
+    latest["y10"] = ((latest["v"] - latest["old"]) / latest["old"] * 100).where(latest["old"] > 0).round(1)
+    latest     = latest.drop(columns=["old"])
+
+    cutoff_20y = max_date - pd.DateOffset(months=240)
+    old_20y    = hv[hv["date"] <= cutoff_20y].groupby("zip")["value"].last().rename("old").reset_index()
+    latest     = latest.merge(old_20y, left_on="z", right_on="zip", how="left").drop(columns=["zip"])
+    latest["y20"] = ((latest["v"] - latest["old"]) / latest["old"] * 100).where(latest["old"] > 0).round(1)
+    latest     = latest.drop(columns=["old"])
+
     df_out = (latest
               .merge(zip_df[["zip","city","state","lat","lng"]],
                      left_on="z", right_on="zip", how="left")

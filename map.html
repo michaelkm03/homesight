@@ -13,7 +13,7 @@
   <meta name="twitter:title" content="HomeSight – U.S. Housing Data by ZIP Code" />
   <meta name="twitter:description" content="Explore home values, rent trends, and appreciation across 26,000+ U.S. ZIP codes. Free, no signup required." />
   <meta name="twitter:image" content="https://homesight.live/static/og-image.png" />
-  <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
   <title>HomeSight</title>
   <link rel="stylesheet" href="/static/leaflet.css" />
   <script src="/static/leaflet.js"></script>
@@ -150,17 +150,16 @@
       100% { transform: scale(1);    box-shadow: none; }
     }
 
-    /* ── Stats overlay ── */
+    /* ── Stats overlay (inside legend, above select) ── */
     #stats-overlay {
-      position: fixed; top: calc(var(--header-h) + 12px); left: 14px;
-      z-index: 900; display: flex; gap: 6px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 5px;
+      margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
     }
     .stat-pill {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 5px; padding: 5px 11px; font-size: 0.7rem; color: var(--muted);
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 5px; padding: 5px 8px; font-size: 0.62rem; color: var(--muted);
     }
-    .stat-pill strong { color: var(--green-dk); font-weight: 700; }
+    .stat-pill strong { display: block; font-size: 0.8rem; color: var(--green-dk); font-weight: 700; margin-top: 1px; }
 
     /* ── Tooltip ── */
     #tooltip {
@@ -270,11 +269,28 @@
       z-index: 950; display: none;
     }
     /* ── Loading mark ── */
-    #loading-mark { animation: lm-glow 1.8s ease-in-out infinite; }
+    #lm-draw {
+      stroke-dasharray: 123; stroke-dashoffset: 123;
+      animation: lm-draw 2.2s ease-in-out infinite;
+    }
+    #lm-arr { opacity: 0; animation: lm-arr 2.2s ease-in-out infinite; }
+    #loading-mark { animation: lm-glow 2.2s ease-in-out infinite; }
+    @keyframes lm-draw {
+      0%, 5%      { stroke-dashoffset: 123; }
+      72%         { stroke-dashoffset: 0; }
+      87%         { stroke-dashoffset: 0; }
+      87.5%, 100% { stroke-dashoffset: 123; }
+    }
+    @keyframes lm-arr {
+      0%, 68%     { opacity: 0; }
+      78%, 87%    { opacity: 1; }
+      87.5%, 100% { opacity: 0; }
+    }
     @keyframes lm-glow {
-      0%, 100% { filter: drop-shadow(0 0 3.6px rgba(110,231,183,0.20)); }
-      50%       { filter: drop-shadow(0 0 10px rgba(110,231,183,0.45))
-                          drop-shadow(0 0 20px rgba(110,231,183,0.18)); }
+      0%, 10%     { filter: drop-shadow(0 0 3.6px rgba(110,231,183,0.20)); }
+      72%, 87%    { filter: drop-shadow(0 0 14px rgba(110,231,183,0.65))
+                            drop-shadow(0 0 28px rgba(110,231,183,0.28)); }
+      87.5%, 100% { filter: drop-shadow(0 0 3.6px rgba(110,231,183,0.20)); }
     }
 
     /* ── Rankings panel ── */
@@ -537,28 +553,37 @@
 <div id="loading-bar"></div>
 <div id="loading-msg">
   <svg id="loading-mark" viewBox="0 -6 96 74" width="192" height="148" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <polyline points="6,66 25,36 36,49 59,18 70,27 80,12"
-      stroke="#1a5c3a" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <polygon points="88,0 86,16 74,8" fill="#1a5c3a"/>
-    <polyline points="3,63 22,33 33,46 56,15 67,24 77,9"
+    <!-- ghost: full mark at 30% opacity as baseline -->
+    <g opacity="0.30">
+      <polyline points="6,66 25,36 36,49 59,18 70,27 80,12"
+        stroke="#1a5c3a" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <polygon points="88,0 86,16 74,8" fill="#1a5c3a"/>
+      <polyline points="3,63 22,33 33,46 56,15 67,24 77,9"
+        stroke="#6ee7b7" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <polygon points="85,-3 83,13 71,5" fill="#6ee7b7"/>
+    </g>
+    <!-- draw layer: teal mark draws in from bottom-left to upper-right at 100% -->
+    <polyline id="lm-draw" points="3,63 22,33 33,46 56,15 67,24 77,9"
       stroke="#6ee7b7" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <polygon points="85,-3 83,13 71,5" fill="#6ee7b7"/>
+    <polygon id="lm-arr" points="85,-3 83,13 71,5" fill="#6ee7b7"/>
   </svg>
 </div>
 <div id="map"></div>
 
-<div id="stats-overlay">
-  <div class="stat-pill">US Median: <strong id="stat-median">—</strong></div>
-  <div class="stat-pill">Avg YoY: <strong id="stat-yoy">—</strong></div>
-  <div class="stat-pill">ZIPs: <strong id="stat-count">—</strong></div>
-</div>
-
 <div id="legend">
+  <div id="stats-overlay">
+    <div class="stat-pill">US Median<strong id="stat-median">—</strong></div>
+    <div class="stat-pill">Avg YoY<strong id="stat-yoy">—</strong></div>
+    <div class="stat-pill">Total Zipcodes<strong id="stat-count">—</strong></div>
+    <div class="stat-pill">Total Homes<strong id="stat-homes">—</strong></div>
+  </div>
   <select id="legend-select" onchange="changeMetric()">
     <option value="value">Median Home Value</option>
     <option value="yoy" selected>1-Year Change %</option>
     <option value="yoy3">3-Year Change %</option>
     <option value="yoy5">5-Year Change %</option>
+    <option value="yoy10">10-Year Change %</option>
+    <option value="yoy20">20-Year Change %</option>
   </select>
   <div id="legend-items"></div>
   <div id="legend-sources">
@@ -760,13 +785,33 @@ const YOY5_BREAKS = [
   { max: Infinity, color: "#1a9850", label: "> 60%"       },
 ];
 
+const YOY10_BREAKS = [
+  { max: 0,        color: "#d73027", label: "< 0%"         },
+  { max: 30,       color: "#fc8d59", label: "0 – 30%"      },
+  { max: 60,       color: "#fee090", label: "30 – 60%"     },
+  { max: 100,      color: "#91cf60", label: "60 – 100%"    },
+  { max: 150,      color: "#1a9850", label: "100 – 150%"   },
+  { max: Infinity, color: "#00441b", label: "> 150%"        },
+];
+
+const YOY20_BREAKS = [
+  { max: 0,        color: "#d73027", label: "< 0%"         },
+  { max: 50,       color: "#fc8d59", label: "0 – 50%"      },
+  { max: 100,      color: "#fee090", label: "50 – 100%"    },
+  { max: 150,      color: "#91cf60", label: "100 – 150%"   },
+  { max: 250,      color: "#1a9850", label: "150 – 250%"   },
+  { max: Infinity, color: "#00441b", label: "> 250%"        },
+];
+
 const NO_DATA_COLOR = "#374151"; // medium grey — clearly "no data", not a value
 
 function getColor(val, metric) {
-  if (val == null) return (metric === "yoy3" || metric === "yoy5") ? NO_DATA_COLOR : "#1a2a2c";
-  const breaks = metric === "yoy"  ? YOY_BREAKS  :
-                 metric === "yoy3" ? YOY3_BREAKS :
-                 metric === "yoy5" ? YOY5_BREAKS : VALUE_BREAKS;
+  if (val == null) return (metric === "yoy3" || metric === "yoy5" || metric === "yoy10" || metric === "yoy20") ? NO_DATA_COLOR : "#1a2a2c";
+  const breaks = metric === "yoy"   ? YOY_BREAKS   :
+                 metric === "yoy3"  ? YOY3_BREAKS  :
+                 metric === "yoy5"  ? YOY5_BREAKS  :
+                 metric === "yoy10" ? YOY10_BREAKS :
+                 metric === "yoy20" ? YOY20_BREAKS : VALUE_BREAKS;
   for (const b of breaks) if (val <= b.max) return b.color;
   return "#555";
 }
@@ -818,10 +863,12 @@ document.addEventListener("mousemove", e => {
 
 // ── Legend ────────────────────────────────────────────────────────────────────
 function buildLegend(metric) {
-  const breaks = metric === "yoy"  ? YOY_BREAKS  :
-                 metric === "yoy3" ? YOY3_BREAKS :
-                 metric === "yoy5" ? YOY5_BREAKS : VALUE_BREAKS;
-  const noDataRow = (metric === "yoy3" || metric === "yoy5")
+  const breaks = metric === "yoy"   ? YOY_BREAKS   :
+                 metric === "yoy3"  ? YOY3_BREAKS  :
+                 metric === "yoy5"  ? YOY5_BREAKS  :
+                 metric === "yoy10" ? YOY10_BREAKS :
+                 metric === "yoy20" ? YOY20_BREAKS : VALUE_BREAKS;
+  const noDataRow = (metric === "yoy3" || metric === "yoy5" || metric === "yoy10" || metric === "yoy20")
     ? `<div class="legend-row">
          <div class="legend-swatch" style="background:${NO_DATA_COLOR}"></div>
          <span class="legend-label" style="color:var(--muted)">No data</span>
@@ -849,9 +896,11 @@ function strokeWeight() {
 function featureStyle(feature, selected = false) {
   const zip = feature.properties.zip;
   const d   = valueMap[zip];
-  const val = currentMetric === "yoy"  ? d?.y  :
-              currentMetric === "yoy3" ? d?.y3 :
-              currentMetric === "yoy5" ? d?.y5 : d?.v;
+  const val = currentMetric === "yoy"   ? d?.y   :
+              currentMetric === "yoy3"  ? d?.y3  :
+              currentMetric === "yoy5"  ? d?.y5  :
+              currentMetric === "yoy10" ? d?.y10 :
+              currentMetric === "yoy20" ? d?.y20 : d?.v;
   const hasSelection = activeLayer !== null;
   return {
     fillColor:   getColor(val, currentMetric),
@@ -883,13 +932,19 @@ function renderBoundaries() {
           color: "rgba(255,255,255,0.6)",
           weight: Math.max(strokeWeight(), 0.8),
         });
-        const activeYoy = currentMetric === "yoy3" ? d.y3 : currentMetric === "yoy5" ? d.y5 : d.y;
+        const activeYoy = currentMetric === "yoy3"  ? d.y3  :
+                          currentMetric === "yoy5"  ? d.y5  :
+                          currentMetric === "yoy10" ? d.y10 :
+                          currentMetric === "yoy20" ? d.y20 : d.y;
+        const yoyLabel  = currentMetric === "yoy10" ? "10-yr" : currentMetric === "yoy20" ? "20-yr" :
+                          currentMetric === "yoy5"  ? "5-yr"  : currentMetric === "yoy3"  ? "3-yr"  : "YoY";
         const yoyColor  = activeYoy == null ? "" : activeYoy >= 0 ? "color:#6ee7b7" : "color:#fb7185";
+        const yoyFmt    = activeYoy == null ? "—" : (activeYoy >= 0 ? "▲ +" : "▼ ") + activeYoy.toFixed(1) + "% " + yoyLabel;
         tooltip.innerHTML = `
           <div class="tt-zip">ZIP ${zip}</div>
           <div class="tt-city">${d.city || ""}${d.state ? ", " + d.state : ""}</div>
           <div class="tt-value">${fmtVal(d.v)}</div>
-          <div class="tt-yoy" style="${yoyColor}">${fmtYoy(activeYoy)}</div>
+          <div class="tt-yoy" style="${yoyColor}">${yoyFmt}</div>
           <div class="tt-hint">Click for full investment trends →</div>`;
         tooltip.style.display = "block";
       });
@@ -1023,6 +1078,7 @@ async function boot() {
   document.getElementById("stat-median").textContent = fmtVal(stats.median_value);
   document.getElementById("stat-yoy").textContent    = stats.median_yoy != null ? (stats.median_yoy >= 0 ? "+" : "") + stats.median_yoy + "%" : "—";
   document.getElementById("stat-count").textContent  = allData.length.toLocaleString();
+  document.getElementById("stat-homes").textContent  = stats.total_homes != null ? Number(stats.total_homes).toLocaleString() : "—";
 
   buildLegend(currentMetric);
   setLoading(40);
