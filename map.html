@@ -770,8 +770,10 @@ const YOY5_BREAKS = [
   { max: Infinity, color: "#1a9850", label: "> 60%"       },
 ];
 
+const NO_DATA_COLOR = "#374151"; // medium grey — clearly "no data", not a value
+
 function getColor(val, metric) {
-  if (val == null) return "#1a2a2c";
+  if (val == null) return (metric === "yoy3" || metric === "yoy5") ? NO_DATA_COLOR : "#1a2a2c";
   const breaks = metric === "yoy"  ? YOY_BREAKS  :
                  metric === "yoy3" ? YOY3_BREAKS :
                  metric === "yoy5" ? YOY5_BREAKS : VALUE_BREAKS;
@@ -829,12 +831,18 @@ function buildLegend(metric) {
   const breaks = metric === "yoy"  ? YOY_BREAKS  :
                  metric === "yoy3" ? YOY3_BREAKS :
                  metric === "yoy5" ? YOY5_BREAKS : VALUE_BREAKS;
+  const noDataRow = (metric === "yoy3" || metric === "yoy5")
+    ? `<div class="legend-row">
+         <div class="legend-swatch" style="background:${NO_DATA_COLOR}"></div>
+         <span class="legend-label" style="color:var(--muted)">No data</span>
+       </div>`
+    : "";
   document.getElementById("legend-items").innerHTML = breaks.map(b =>
     `<div class="legend-row">
        <div class="legend-swatch" style="background:${b.color}"></div>
        <span class="legend-label">${b.label}</span>
      </div>`
-  ).join("");
+  ).join("") + noDataRow;
 }
 
 // ── Zoom-adaptive stroke weight ───────────────────────────────────────────────
