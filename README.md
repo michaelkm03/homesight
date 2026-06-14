@@ -142,7 +142,7 @@ On any failure it publishes to SNS, which emails `michaelkm03@gmail.com`.
 ## Project Structure
 
 ```
-zillow-trends/
+homesight/
 ├── ingest.py               # Data pipeline — downloads and processes all sources
 ├── server.py               # FastAPI backend — API, caching, tile proxy
 ├── map.html                # Map frontend — Leaflet, ZIP panel, charts
@@ -202,28 +202,28 @@ HomeSight runs on **AWS Lightsail** (4 GB RAM, Ubuntu 24.04) behind nginx with S
 
 **Stack:**
 - **nginx** — reverse proxy port 80/443 → uvicorn port 8000
-- **systemd** — `beacon.service` keeps the app running and restarts on crash
+- **systemd** — `homesight.service` keeps the app running and restarts on crash
 - **certbot** — auto-renewing SSL for homesight.live
 
 **Service management (on server):**
 ```bash
-sudo systemctl status beacon     # check status
-sudo systemctl restart beacon    # restart app
-sudo journalctl -u beacon -f     # tail logs
+sudo systemctl status homesight     # check status
+sudo systemctl restart homesight    # restart app
+sudo journalctl -u homesight -f     # tail logs
 ```
 
 **Deploy latest code (run locally):**
 ```bash
 # bash / Git Bash
-ssh -i ~/.ssh/beacon.pem ubuntu@44.198.184.19 "cd /opt/beacon && sudo git pull && sudo systemctl restart beacon"
+ssh -i ~/.ssh/homesight.pem ubuntu@44.198.184.19 "cd /opt/homesight && sudo git pull && sudo systemctl restart homesight"
 ```
 
 **Refresh data** (pulls latest Zillow CSVs, ~10 min):
 ```bash
 # on the server
-cd /opt/beacon
+cd /opt/homesight
 sudo venv/bin/python ingest.py
-sudo systemctl restart beacon
+sudo systemctl restart homesight
 ```
 
 ---
