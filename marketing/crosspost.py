@@ -62,7 +62,7 @@ def post_hashnode(title, body, tags, canonical_url, cover_image=None):
         inp["coverImageOptions"] = {"coverImageURL": cover_image}
     r = requests.post(
         "https://gql.hashnode.com/",
-        headers={"Authorization": HN_KEY, "Content-Type": "application/json"},
+        headers={"Authorization": f"Bearer {HN_KEY}", "Content-Type": "application/json"},
         json={"query": mutation, "variables": {"input": inp}},
         timeout=30,
     )
@@ -105,6 +105,7 @@ def audit_devto():
     if not profile.get('website_url'):
         suggestions.append("Add website (homesight.live) in dev.to/settings — free backlink on every article")
 
+    articles = [a for a in articles if not a.get('title', '').startswith('[')]
     if articles:
         total_views     = sum(a.get('page_views_count', 0) for a in articles)
         total_reactions = sum(a.get('reactions_count', 0) for a in articles)
@@ -164,18 +165,26 @@ def audit_hashnode():
       me {
         username
         bio { text }
-        photo { url }
+        profilePicture
         socialMediaLinks { website }
       }
     }
     """
     r = requests.post(
         "https://gql.hashnode.com/",
-        headers={"Authorization": HN_KEY, "Content-Type": "application/json"},
+        headers={"Authorization": f"Bearer {HN_KEY}", "Content-Type": "application/json"},
         json={"query": query, "variables": {"pubId": HN_PUB_ID}},
         timeout=30,
     )
-    data = r.json()
+    if not r.text.strip():
+        print(f"\n=== Hashnode ===\nEmpty response (HTTP {r.status_code}) — check HASHNODE_API_KEY")
+        return
+    try:
+        data = r.json()
+    except Exception:
+        print(f"\n=== Hashnode ===\nHTTP {r.status_code} — got HTML instead of JSON (auth rejected or wrong endpoint)")
+        print("Check: hashnode.com/settings/developer → regenerate token, update HASHNODE_API_KEY")
+        return
     if "errors" in data:
         print(f"\n=== Hashnode ===\nAudit query failed: {data['errors']}")
         return
@@ -188,14 +197,14 @@ def audit_hashnode():
     print(f"Username : @{me.get('username')}")
     bio_text = (me.get("bio") or {}).get("text", "")
     print(f"Bio      : {'set' if bio_text else 'MISSING'}")
-    print(f"Avatar   : {'set' if (me.get('photo') or {}).get('url') else 'MISSING'}")
+    print(f"Avatar   : {'set' if me.get('profilePicture') else 'MISSING'}")
     website = (me.get("socialMediaLinks") or {}).get("website", "")
     print(f"Website  : {website or 'MISSING'}")
 
     suggestions = []
     if not bio_text:
         suggestions.append("Add bio at hashnode.com/settings")
-    if not (me.get("photo") or {}).get("url"):
+    if not me.get("profilePicture"):
         suggestions.append("Add profile photo at hashnode.com/settings")
     if not website:
         suggestions.append("Add website (homesight.live) at hashnode.com/settings")
