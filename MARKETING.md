@@ -286,7 +286,36 @@ HomeSight's ceiling is here. Zillow built 33M monthly visits largely through loc
 
 ---
 
-### 6. Indie Hackers — Build in Public
+### 6. Content Platforms — Medium / Dev.to / Hashnode
+
+Data journalism articles that drive traffic to homesight.live. Each Medium article cross-posts to Dev.to and Hashnode automatically via `crosspost.py`.
+
+**Article schedule:**
+
+| Date | Title | Medium | Dev.to | Hashnode |
+|------|-------|--------|--------|----------|
+| June 16 | I Mapped Home Prices Across 26,000 U.S. ZIP Codes | ✅ Published | ✅ Published | ⬜ Pending |
+| June 24 | 5 U.S. Housing Markets Quietly Outperforming in 2026 | ✅ Scheduled | ⬜ Run script | ⬜ Run script |
+| July 1 | How to Research Any Neighborhood's Home Value History | ✅ Scheduled | ⬜ Run script | ⬜ Run script |
+| July 8 | Is the Sun Belt Housing Boom Actually Over? | ⬜ Schedule | ⬜ Run script | ⬜ Run script |
+
+**Cross-post script:** `C:\Users\micha\Documents\crosspost.py`
+- Article configs: `C:\Users\micha\Documents\articles\`
+- Run after each Medium article publishes: `python crosspost.py articles/articleN.json`
+- Requires: DEVTO_API_KEY, HASHNODE_API_KEY, HASHNODE_PUB_ID env vars
+
+**LinkedIn:** Post each article same day it publishes (10 AM EST). First comment links to Medium article, not homesight.live directly.
+
+**Tags per platform:**
+- Dev.to: webdev, datascience, javascript, discuss
+- Hashnode: webdev, datascience
+- Medium: Real Estate, Housing Market, Personal Finance, Data, Data Science (varies by article)
+
+**Canonical URL rule:** Always set canonical URL on Dev.to and Hashnode to point to the Medium article. SEO credit stays with Medium.
+
+---
+
+### 7. Indie Hackers — Build in Public
 
 Post milestone updates with honest numbers (users, sessions, what worked, what didn't). This audience shares and links — each post is also a small SEO hit.
 

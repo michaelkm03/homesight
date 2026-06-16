@@ -144,10 +144,20 @@ Each page must:
   - Checks: /health, /api/zip/98101, /api/heatmap
 - [x] **P4** — Bing Webmaster Tools — verified 2026-06-12, homesight.live indexed for Bing/DuckDuckGo
 - [x] **P5** — GA4 event tracking — deployed 2026-06-12; tracks zip_search (landing + header), zip_click (map), metric_change, metro_search
-- [ ] **P6** — Pre-write launch posts — draft all copy before launch day
-  - r/dataisbeautiful post (title + body)
-  - Show HN submission text + first comment
-  - Twitter/X launch thread (6 tweets)
+- [x] **P6** — Content platform posts
+  - Medium Article 1 published 2026-06-16: https://medium.com/@michaelkm03/i-mapped-26-000-u-s-zip-codes-heres-what-city-averages-are-hiding-0f398e729a70
+  - Medium Article 2 scheduled 2026-06-24 8AM EST
+  - Medium Article 3 scheduled 2026-07-01 8AM EST
+  - Medium Article 4 (Sun Belt) — schedule for 2026-07-08 8AM EST
+  - Dev.to Article 1 published 2026-06-16: https://dev.to/michael_montgomery/i-mapped-home-prices-across-26000-us-zip-codes-heres-what-city-averages-are-hiding-1ej0
+  - Hashnode account — create + cross-post Article 1 (pending)
+  - LinkedIn post — ready, post 2026-06-17 8-9AM EST (first comment links to Medium)
+  - r/dataisbeautiful, Show HN, Twitter thread — not yet written
+- [x] **P7** — Cross-post automation script
+  - `C:\Users\micha\Documents\crosspost.py` — publishes to Dev.to + Hashnode simultaneously
+  - Article configs in `C:\Users\micha\Documents\articles\`
+  - Run: `python crosspost.py articles/articleN.json`
+  - Requires env vars: DEVTO_API_KEY, HASHNODE_API_KEY, HASHNODE_PUB_ID (see memory)
 
 ### Twitter/X Setup
 - [ ] **T1** — Set up alerts/monitoring for: @nickgerli1, @zillow, @redfin, @NAR_Research
