@@ -512,6 +512,9 @@
     #landing-skip:hover { color: rgba(255,255,255,0.7); text-decoration-color: rgba(255,255,255,0.4); }
     #landing-skip:active { color: rgba(255,255,255,0.9); }
 
+    /* Reposition error message so it's never hidden behind the open panel */
+    #map.panel-open ~ #map-msg { right: calc(var(--panel-w) + 16px); }
+
     /* Leaflet zoom animation: 150ms instead of 250ms — less time showing blurry scaled tiles */
     .leaflet-zoom-anim .leaflet-zoom-animated { transition-duration: 0.15s !important; }
     /* Tile fade-in: 100ms instead of 200ms — new tiles appear faster after zoom settles */
@@ -732,6 +735,9 @@ function landingSubmit() {
   if (!/^\d{5}$/.test(zip)) {
     err.textContent = "Enter a valid 5-digit ZIP."; return;
   }
+  if (_bootDone && !valueMap[zip]) {
+    err.textContent = "No housing data for ZIP " + zip + ". Try a nearby ZIP."; return;
+  }
   err.textContent = "";
   gtag("event", "zip_search", { zip_code: zip, source: "landing" });
   sessionStorage.setItem(VISIT_KEY, "1");
@@ -748,7 +754,12 @@ function landingSkip() {
 function applyPendingZip() {
   const zip = _pendingZip; _pendingZip = null;
   const d = valueMap[zip];
-  if (d?.lat && d?.lng) map.setView([d.lat, d.lng], 12, { animate: true });
+  if (!d) {
+    document.getElementById("landing-overlay").classList.remove("hidden");
+    document.getElementById("landing-err").textContent = "No housing data for ZIP " + zip + ". Try a nearby ZIP.";
+    return;
+  }
+  if (d.lat && d.lng) map.setView([d.lat, d.lng], 12, { animate: true });
   openPanel(zip);
 }
 
@@ -996,15 +1007,17 @@ function changeMetric() {
 
 // ── Jump to ZIP ───────────────────────────────────────────────────────────────
 function jumpToZip() {
-  const zip = document.getElementById("zip-input").value.trim().padStart(5, "0");
-  if (zip.length !== 5) return;
+  const raw = document.getElementById("zip-input").value.trim();
+  if (!raw) return;
+  const zip = raw.padStart(5, "0");
+  if (!/^\d{5}$/.test(zip)) return;
   const d = valueMap[zip];
   if (d?.lat && d?.lng) {
     gtag("event", "zip_search", { zip_code: zip, source: "header" });
     map.setView([d.lat, d.lng], 12, { animate: true });
     openPanel(zip);
   } else {
-    setMsg("No data for ZIP " + zip, true);
+    setMsg("No housing data for ZIP " + zip, true);
   }
 }
 
