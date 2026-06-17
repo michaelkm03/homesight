@@ -116,6 +116,17 @@
       padding-right: 24px;
     }
     #legend-select:focus { border-color: var(--green); }
+
+    #layer-toggle { display: flex; gap: 4px; margin-bottom: 10px; }
+    .layer-pill {
+      flex: 1; padding: 5px 8px; font-size: 0.7rem; font-weight: 700;
+      border-radius: 4px; cursor: pointer; transition: all 0.15s;
+      border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+      font-family: inherit;
+    }
+    .layer-pill.active { background: var(--green); color: #0a2e1c; border-color: var(--green); }
+    .layer-pill:hover:not(.active) { border-color: rgba(110,231,183,0.4); color: var(--text); }
+
     .legend-row { display: flex; align-items: center; gap: 9px; margin-bottom: 5px; }
     .legend-swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
     .legend-label { font-size: 0.72rem; color: var(--text); }
@@ -580,6 +591,10 @@
     <div class="stat-pill">Total Zipcodes<strong id="stat-count">—</strong></div>
     <div class="stat-pill">Total Homes<strong id="stat-homes">—</strong></div>
   </div>
+  <div id="layer-toggle">
+    <button class="layer-pill active" id="pill-home" onclick="setLayer('home')">Home Values</button>
+    <button class="layer-pill" id="pill-rent" onclick="setLayer('rent')">Rent</button>
+  </div>
   <select id="legend-select" onchange="changeMetric()">
     <option value="value">Median Home Value</option>
     <option value="yoy" selected>1-Year Change %</option>
@@ -612,12 +627,12 @@
     <div id="invest-badge"></div>
   </div>
   <div id="panel-hero">
-    <div id="panel-hero-label">Current Home Value</div>
+    <div id="panel-hero-label">Median Home Value</div>
     <div id="panel-hero-value"></div>
     <div id="panel-hero-yoy"></div>
     <div id="listing-links">
-      <a id="link-zillow" class="listing-link listing-link-zillow" target="_blank" rel="noopener">🏠 Zillow</a>
-      <a id="link-redfin" class="listing-link listing-link-redfin" target="_blank" rel="noopener">🔑 Redfin</a>
+      <a id="link-zillow" class="listing-link listing-link-zillow" target="_blank" rel="noopener noreferrer">🏠 Zillow</a>
+      <a id="link-redfin" class="listing-link listing-link-redfin" target="_blank" rel="noopener noreferrer">🔑 Redfin</a>
     </div>
   </div>
   <div id="panel-stats"></div>
@@ -814,15 +829,25 @@ const YOY20_BREAKS = [
   { max: Infinity, color: "#00441b", label: "> 250%"        },
 ];
 
-const NO_DATA_COLOR = "#374151"; // medium grey — clearly "no data", not a value
+const RENT_BREAKS = [
+  { max: 1000,     color: "#313695", label: "< $1,000/mo"  },
+  { max: 1500,     color: "#4575b4", label: "$1,000–1,500" },
+  { max: 2000,     color: "#74add1", label: "$1,500–2,000" },
+  { max: 2500,     color: "#fdae61", label: "$2,000–2,500" },
+  { max: 3000,     color: "#f46d43", label: "$2,500–3,000" },
+  { max: Infinity, color: "#a50026", label: "> $3,000/mo"  },
+];
+
 
 function getColor(val, metric) {
-  if (val == null) return (metric === "yoy3" || metric === "yoy5" || metric === "yoy10" || metric === "yoy20") ? NO_DATA_COLOR : "#1a2a2c";
+  const isRent = currentLayer === "rent";
+  if (val == null) return null;
   const breaks = metric === "yoy"   ? YOY_BREAKS   :
                  metric === "yoy3"  ? YOY3_BREAKS  :
                  metric === "yoy5"  ? YOY5_BREAKS  :
                  metric === "yoy10" ? YOY10_BREAKS :
-                 metric === "yoy20" ? YOY20_BREAKS : VALUE_BREAKS;
+                 metric === "yoy20" ? YOY20_BREAKS :
+                 (isRent ? RENT_BREAKS : VALUE_BREAKS);
   for (const b of breaks) if (val <= b.max) return b.color;
   return "#555";
 }
@@ -830,9 +855,10 @@ function getColor(val, metric) {
 function fmtVal(v)  { if (!v) return "—"; return v >= 1000000 ? "$"+(v/1000000).toFixed(2)+"M" : "$"+Math.round(v).toLocaleString(); }
 function fmtYoy(y)  { if (y == null) return "—"; return (y >= 0 ? "▲ +" : "▼ ") + y.toFixed(1) + "% YoY"; }
 function fmtDays(v) { return v != null ? Math.round(v) + " days" : "—"; }
+function fmtRent(v) { return v != null ? "$" + Math.round(v).toLocaleString() + "/mo" : "—"; }
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let map, geoLayer, zipToLayer = {}, valueMap = {}, allData = [], currentMetric = "yoy";
+let map, geoLayer, zipToLayer = {}, valueMap = {}, allData = [], currentMetric = "yoy", currentLayer = "home";
 let activeLayer = null, chartInstances = {};
 const DEFAULT_ZIP = "98106";
 const DEFAULT_CENTER = [47.52, -122.37];
@@ -874,23 +900,19 @@ document.addEventListener("mousemove", e => {
 
 // ── Legend ────────────────────────────────────────────────────────────────────
 function buildLegend(metric) {
+  const isRent = currentLayer === "rent";
   const breaks = metric === "yoy"   ? YOY_BREAKS   :
                  metric === "yoy3"  ? YOY3_BREAKS  :
                  metric === "yoy5"  ? YOY5_BREAKS  :
                  metric === "yoy10" ? YOY10_BREAKS :
-                 metric === "yoy20" ? YOY20_BREAKS : VALUE_BREAKS;
-  const noDataRow = (metric === "yoy3" || metric === "yoy5" || metric === "yoy10" || metric === "yoy20")
-    ? `<div class="legend-row">
-         <div class="legend-swatch" style="background:${NO_DATA_COLOR}"></div>
-         <span class="legend-label" style="color:var(--muted)">No data</span>
-       </div>`
-    : "";
+                 metric === "yoy20" ? YOY20_BREAKS :
+                 (isRent ? RENT_BREAKS : VALUE_BREAKS);
   document.getElementById("legend-items").innerHTML = breaks.map(b =>
     `<div class="legend-row">
        <div class="legend-swatch" style="background:${b.color}"></div>
        <span class="legend-label">${b.label}</span>
      </div>`
-  ).join("") + noDataRow;
+  ).join("");
 }
 
 // ── Zoom-adaptive stroke weight ───────────────────────────────────────────────
@@ -907,14 +929,18 @@ function strokeWeight() {
 function featureStyle(feature, selected = false) {
   const zip = feature.properties.zip;
   const d   = valueMap[zip];
-  const val = currentMetric === "yoy"   ? d?.y   :
-              currentMetric === "yoy3"  ? d?.y3  :
-              currentMetric === "yoy5"  ? d?.y5  :
-              currentMetric === "yoy10" ? d?.y10 :
-              currentMetric === "yoy20" ? d?.y20 : d?.v;
+  const isRent = currentLayer === "rent";
+  const val = currentMetric === "yoy"   ? (isRent ? d?.ry   : d?.y)   :
+              currentMetric === "yoy3"  ? (isRent ? d?.ry3  : d?.y3)  :
+              currentMetric === "yoy5"  ? (isRent ? d?.ry5  : d?.y5)  :
+              currentMetric === "yoy10" ? (isRent ? d?.ry10 : d?.y10) :
+              currentMetric === "yoy20" ? (isRent ? d?.ry20 : d?.y20) :
+              (isRent ? d?.rv : d?.v);
+  const color = getColor(val, currentMetric);
+  if (color === null) return { fillColor: "#000", fillOpacity: 0, color: "rgba(0,0,0,0)", weight: 0, opacity: 0 };
   const hasSelection = activeLayer !== null;
   return {
-    fillColor:   getColor(val, currentMetric),
+    fillColor:   color,
     fillOpacity: selected ? 0.75 : hasSelection ? 0.26 : 0.6,
     color:       selected ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.1)",
     weight:      selected ? 2.5 : hasSelection ? 0.2 : strokeWeight(),
@@ -943,10 +969,12 @@ function renderBoundaries() {
           color: "rgba(255,255,255,0.6)",
           weight: Math.max(strokeWeight(), 0.8),
         });
-        const activeYoy = currentMetric === "yoy3"  ? d.y3  :
-                          currentMetric === "yoy5"  ? d.y5  :
-                          currentMetric === "yoy10" ? d.y10 :
-                          currentMetric === "yoy20" ? d.y20 : d.y;
+        const isRent    = currentLayer === "rent";
+        const activeYoy = currentMetric === "yoy3"  ? (isRent ? d.ry3  : d.y3)  :
+                          currentMetric === "yoy5"  ? (isRent ? d.ry5  : d.y5)  :
+                          currentMetric === "yoy10" ? (isRent ? d.ry10 : d.y10) :
+                          currentMetric === "yoy20" ? (isRent ? d.ry20 : d.y20) :
+                          (isRent ? d.ry : d.y);
         const yoyLabel  = currentMetric === "yoy10" ? "10-yr" : currentMetric === "yoy20" ? "20-yr" :
                           currentMetric === "yoy5"  ? "5-yr"  : currentMetric === "yoy3"  ? "3-yr"  : "YoY";
         const yoyColor  = activeYoy == null ? "" : activeYoy >= 0 ? "color:#6ee7b7" : "color:#fb7185";
@@ -954,7 +982,7 @@ function renderBoundaries() {
         tooltip.innerHTML = `
           <div class="tt-zip">ZIP ${zip}</div>
           <div class="tt-city">${d.city || ""}${d.state ? ", " + d.state : ""}</div>
-          <div class="tt-value">${fmtVal(d.v)}</div>
+          <div class="tt-value">${isRent ? fmtRent(d.rv) : fmtVal(d.v)}</div>
           <div class="tt-yoy" style="${yoyColor}">${yoyFmt}</div>
           <div class="tt-hint">Click for full investment trends →</div>`;
         tooltip.style.display = "block";
@@ -992,6 +1020,27 @@ function highlightZip(zip) {
     if (newLayer) newLayer.setStyle(featureStyle(newLayer.feature, true));
   }
   if (activeLayer) activeLayer.bringToFront();
+}
+
+// ── Layer toggle (Home Values / Rent) ─────────────────────────────────────────
+function setLayer(layer) {
+  currentLayer = layer;
+  document.getElementById("pill-home").classList.toggle("active", layer === "home");
+  document.getElementById("pill-rent").classList.toggle("active", layer === "rent");
+  document.querySelector("#legend-select option[value='value']").textContent =
+    layer === "rent" ? "Current Rent" : "Median Home Value";
+  if (layer === "rent" && currentMetric !== "value") {
+    document.getElementById("legend-select").value = "value";
+    currentMetric = "value";
+  }
+  gtag("event", "metric_change", { metric: currentMetric + "_" + layer });
+  buildLegend(currentMetric);
+  if (geoLayer) {
+    geoLayer.setStyle(feature => featureStyle(feature,
+      activeLayer && activeLayer.feature === feature));
+  }
+  const openZip = activeLayer?.feature?.properties?.zip;
+  if (openZip && zipDataCache[openZip]) renderHero(zipDataCache[openZip]);
 }
 
 // ── Change metric ─────────────────────────────────────────────────────────────
@@ -1249,14 +1298,16 @@ function closePanel() {
 
 // ── Hero stat ────────────────────────────────────────────────────────────────
 function renderHero(data) {
-  const hv   = data.configs?.home_values;
-  const hero = document.getElementById("panel-hero");
-  if (!hv?.values) { hero.style.display = "none"; return; }
-  const vals = hv.values.filter(v => v != null);
+  const isRent = currentLayer === "rent";
+  const cfg    = isRent ? data.configs?.rentals : data.configs?.home_values;
+  const hero   = document.getElementById("panel-hero");
+  if (!cfg?.values) { hero.style.display = "none"; return; }
+  const vals = cfg.values.filter(v => v != null);
   if (!vals.length) { hero.style.display = "none"; return; }
   const last = vals[vals.length - 1];
-  const yoy  = calcYoy(hv.values);
-  document.getElementById("panel-hero-value").textContent = fmtVal(last);
+  const yoy  = calcYoy(cfg.values);
+  document.getElementById("panel-hero-label").textContent = isRent ? "Median Monthly Rent" : "Median Home Value";
+  document.getElementById("panel-hero-value").textContent = isRent ? fmtRent(last) : fmtVal(last);
   const yoyEl = document.getElementById("panel-hero-yoy");
   if (yoy != null) {
     yoyEl.textContent = (yoy >= 0 ? "▲ +" : "▼ ") + yoy.toFixed(1) + "% year over year";
@@ -1267,8 +1318,17 @@ function renderHero(data) {
   hero.style.display = "block";
 
   const zip = data.zip;
-  document.getElementById("link-zillow").href = `https://www.zillow.com/homes/${zip}_rb/`;
-  document.getElementById("link-redfin").href = `https://www.redfin.com/zipcode/${zip}`;
+  if (isRent) {
+    document.getElementById("link-zillow").href        = `https://www.zillow.com/${zip}/rentals/`;
+    document.getElementById("link-zillow").textContent = "🏠 Zillow Rentals";
+    document.getElementById("link-redfin").href        = `https://www.redfin.com/zipcode/${zip}/apartments-for-rent`;
+    document.getElementById("link-redfin").textContent = "🔑 Redfin Rentals";
+  } else {
+    document.getElementById("link-zillow").href        = `https://www.zillow.com/${zip}/`;
+    document.getElementById("link-zillow").textContent = "🏠 Zillow";
+    document.getElementById("link-redfin").href        = `https://www.redfin.com/zipcode/${zip}`;
+    document.getElementById("link-redfin").textContent = "🔑 Redfin";
+  }
   document.getElementById("listing-links").style.display = "flex";
 }
 
@@ -1293,8 +1353,8 @@ function renderBadge(data) {
 
 // ── Stats grid ────────────────────────────────────────────────────────────────
 const STAT_DEFS = [
-  { label: "Home Value",  cfg: "home_values",    fmt: fmtVal,  yoy: true },
-  { label: "Rent",        cfg: "rentals",        fmt: fmtVal,  yoy: true },
+  { label: "Median Home Value",   cfg: "home_values", fmt: fmtVal,  yoy: true },
+  { label: "Median Monthly Rent", cfg: "rentals",     fmt: fmtRent, yoy: true },
   { label: "Median Sale", cfg: "sales",          fmt: fmtVal,  yoy: true },
   { label: "Days on Mkt", cfg: "market_temp", fmt: v => v!=null ? v.toFixed(1) : "—", yoy: false },
 ];
@@ -1347,8 +1407,8 @@ function renderStats(configs, appreciation) {
 
 // ── Charts ────────────────────────────────────────────────────────────────────
 const CHART_DEFS = [
-  { label: "Home Value",    cfg: "home_values",       color: "#3b82f6", fmt: fmtVal, fmtShort: v => v>=1e6?"$"+(v/1e6).toFixed(1)+"M":v>=1000?"$"+(v/1000).toFixed(0)+"K":"$"+Math.round(v) },
-  { label: "Rent",          cfg: "rentals",            color: "#10b981", fmt: fmtVal, fmtShort: v => v>=1000?"$"+(v/1000).toFixed(1)+"K":"$"+Math.round(v) },
+  { label: "Median Home Value",   cfg: "home_values", color: "#3b82f6", fmt: fmtVal,  fmtShort: v => v>=1e6?"$"+(v/1e6).toFixed(1)+"M":v>=1000?"$"+(v/1000).toFixed(0)+"K":"$"+Math.round(v) },
+  { label: "Median Monthly Rent", cfg: "rentals",     color: "#10b981", fmt: fmtRent, fmtShort: v => v!=null?"$"+Math.round(v).toLocaleString()+"/mo":"—" },
   { label: "Median Sale",   cfg: "sales",              color: "#f59e0b", fmt: fmtVal, fmtShort: v => v>=1e6?"$"+(v/1e6).toFixed(1)+"M":v>=1000?"$"+(v/1000).toFixed(0)+"K":"$"+Math.round(v) },
   { label: "New Listings",  cfg: "for_sale_listings",  color: "#14b8a6", fmt: v => v!=null?Math.round(v).toLocaleString():"—", fmtShort: v => Math.round(v) },
 ];

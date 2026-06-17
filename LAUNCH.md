@@ -219,7 +219,15 @@ Each page must:
 - **Script:** `/usr/local/bin/homesight-ingest` — checks exit code before restarting; logs to `/var/log/homesight-ingest.log`.
 - **Failure path:** Service keeps running on last-good data. SNS alert fires via existing `homesight-alerts` topic.
 - **Note:** Zillow publishes ZHVI monthly — most daily runs re-download identical data, but guarantees site reflects new data within 24hrs of any Zillow publish.
+- **`lastUpdated` requirement:** On each successful run, the cron script writes `data/last_refresh.json` containing `{"timestamp": "<ISO-8601 UTC>", "trigger": "cron"}`. The server reads this file at startup and exposes the value as `last_refresh` in both `/health` and `/api/stats`. This is distinct from `data_as_of` (Zillow's latest data date) — `last_refresh` answers "when did our system last pull" while `data_as_of` answers "how fresh is the Zillow data itself."
 - **Effort:** ~1 hr (script + systemd timer unit + deploy)
+
+### F5 — Rent Heatmap Layer (ZORI) ✓ SHIPPED 2026-06-17
+- **What:** Pill toggle (Home Values / Rent) above the legend dropdown. Rent layer shows latest ZORI monthly rent per ZIP as a choropleth with shared time-window filters (current, 1yr%, 3yr%, 5yr%, 10yr%, 20yr%).
+- **Server:** `rv`, `ry`, `ry3`, `ry5`, `ry10`, `ry20` added to every heatmap row. ZIPs without ZORI data render invisible (no fill, no border) rather than grey.
+- **UI:** Pills swap the first dropdown label ("Median Home Value" ↔ "Current Rent"). Switching pills while a ZIP panel is open instantly swaps the hero between home value and rent. Listing links hidden in rent mode.
+- **Coverage:** 8,316 of 26,276 ZIPs have ZORI data (31.6%) — dense rental markets only; a Zillow data limitation.
+- **Note:** Natural pairing with F1 (Price-to-Rent Ratio) — implement together for maximum investor value.
 
 ### F3 — Social Share Button
 - **What:** Share icon in ZIP panel. Mini share sheet: Twitter/X, LinkedIn, Copy Link.

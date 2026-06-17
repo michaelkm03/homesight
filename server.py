@@ -220,6 +220,23 @@ def _build_heatmap() -> list:
         meta_map       = zip_meta.set_index("zip")["metro"].to_dict()
         df_out["metro"] = df_out["z"].map(meta_map)
 
+    if "rentals" in dfs:
+        rent      = dfs["rentals"]
+        rent_max  = rent["date"].max()
+        rv_latest = (rent.groupby("zip")["value"].last()
+                     .rename("rv").reset_index())
+        for label, months in [("ry",12),("ry3",36),("ry5",60),("ry10",120),("ry20",240)]:
+            cutoff    = rent_max - pd.DateOffset(months=months)
+            old       = (rent[rent["date"] <= cutoff]
+                         .groupby("zip")["value"].last()
+                         .rename("old").reset_index())
+            rv_latest = rv_latest.merge(old, on="zip", how="left")
+            rv_latest[label] = ((rv_latest["rv"] - rv_latest["old"]) / rv_latest["old"] * 100).where(rv_latest["old"] > 0).round(1)
+            rv_latest = rv_latest.drop(columns=["old"])
+        rv_latest = rv_latest.rename(columns={"zip": "z"})
+        df_out    = df_out.merge(rv_latest, on="z", how="left")
+        df_out["rv"] = df_out["rv"].round()
+
     return [_clean_row(row) for row in df_out.to_dict(orient="records")]
 
 
