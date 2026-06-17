@@ -89,9 +89,22 @@ Prints four sections:
 1. **Summary** — sessions, users, avg engagement time, engagement rate
 2. **Traffic sources** — top 12 by sessions; content platforms (medium.com, dev.to, hashnode) flagged with `*`
 3. **Landing pages** — which pages users land on first (shows if blog traffic hits `/` or bounces)
-4. **Events** — HomeSight-specific GA4 events (zip_search, zip_click, metric_change, metro_search)
+4. **Events** — GA4 events (zip_search, zip_click, metric_change, metro_search)
 
 Use this weekly after each article publishes to see which platform and article actually drove visits.
+
+**Metrics that matter:**
+
+| Metric | Signal |
+|---|---|
+| `zip_click` | Core engagement — users clicking ZIPs on the map |
+| `zip_search` | Intent-driven users — they came with a specific ZIP in mind |
+| Content platform sessions | medium.com / dev.to referrals — shows which articles drive real traffic |
+| Engagement rate | Target 60%+ — means users interact, not just land and leave |
+
+**Ignore:** `page_view`, `scroll`, `session_start`, `first_visit`, `user_engagement` — GA4 auto-events, not actionable.
+
+**Workflow:** run `--stats --days 7` the day after each LinkedIn/Medium post to measure immediate impact, then `--stats` (30-day) weekly to track trends.
 
 ---
 
