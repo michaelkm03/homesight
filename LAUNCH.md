@@ -150,14 +150,14 @@ Each page must:
   - Medium Article 3 scheduled 2026-07-01 8AM EST
   - Medium Article 4 (Sun Belt) — schedule for 2026-07-08 8AM EST
   - Dev.to Article 1 published 2026-06-16: https://dev.to/michael_montgomery/i-mapped-home-prices-across-26000-us-zip-codes-heres-what-city-averages-are-hiding-1ej0
-  - Hashnode account — create + cross-post Article 1 (pending)
+  - Hashnode — removed (API paid-only since May 2026; content removed by their moderation)
   - LinkedIn post — ready, post 2026-06-17 8-9AM EST (first comment links to Medium)
   - r/dataisbeautiful, Show HN, Twitter thread — not yet written
 - [x] **P7** — Cross-post automation script
-  - `C:\Users\micha\Documents\crosspost.py` — publishes to Dev.to + Hashnode simultaneously
-  - Article configs in `C:\Users\micha\Documents\articles\`
+  - `marketing/crosspost.py` — publishes to Dev.to; Hashnode removed (paid API)
+  - Article configs in `marketing/articles/`
   - Run: `python crosspost.py articles/articleN.json`
-  - Requires env vars: DEVTO_API_KEY, HASHNODE_API_KEY, HASHNODE_PUB_ID (see memory)
+  - Requires env vars: DEVTO_API_KEY (HASHNODE vars no longer needed)
 
 ### Twitter/X Setup
 - [ ] **T1** — Set up alerts/monitoring for: @nickgerli1, @zillow, @redfin, @NAR_Research

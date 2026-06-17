@@ -286,32 +286,32 @@ HomeSight's ceiling is here. Zillow built 33M monthly visits largely through loc
 
 ---
 
-### 6. Content Platforms — Medium / Dev.to / Hashnode
+### 6. Content Platforms — Medium / Dev.to
 
-Data journalism articles that drive traffic to homesight.live. Each Medium article cross-posts to Dev.to and Hashnode automatically via `crosspost.py`.
+Data journalism articles that drive traffic to homesight.live. Each Medium article cross-posts to Dev.to automatically via `crosspost.py`. Hashnode removed — API is paid-only since May 2026.
 
 **Article schedule:**
 
-| Date | Title | Medium | Dev.to | Hashnode |
-|------|-------|--------|--------|----------|
-| June 16 | I Mapped Home Prices Across 26,000 U.S. ZIP Codes | ✅ Published | ✅ Published | ⬜ Pending |
-| June 24 | 5 U.S. Housing Markets Quietly Outperforming in 2026 | ✅ Scheduled | ⬜ Run script | ⬜ Run script |
-| July 1 | How to Research Any Neighborhood's Home Value History | ✅ Scheduled | ⬜ Run script | ⬜ Run script |
-| July 8 | Is the Sun Belt Housing Boom Actually Over? | ⬜ Schedule | ⬜ Run script | ⬜ Run script |
+| Date | Title | Medium | Dev.to |
+|------|-------|--------|--------|
+| June 16 | I Mapped Home Prices Across 26,000 U.S. ZIP Codes | ✅ Published | ✅ Published |
+| June 24 | 5 U.S. Housing Markets Quietly Outperforming in 2026 | ✅ Scheduled | ⬜ Run script after publish |
+| July 1 | How to Research Any Neighborhood's Home Value History | ✅ Scheduled | ⬜ Run script after publish |
+| July 8 | Is the Sun Belt Housing Boom Actually Over? | ⬜ Schedule | ⬜ Run script after publish |
 
-**Cross-post script:** `C:\Users\micha\Documents\crosspost.py`
-- Article configs: `C:\Users\micha\Documents\articles\`
+**Cross-post script:** `marketing/crosspost.py`
+- Article configs: `marketing/articles/`
 - Run after each Medium article publishes: `python crosspost.py articles/articleN.json`
-- Requires: DEVTO_API_KEY, HASHNODE_API_KEY, HASHNODE_PUB_ID env vars
+- Update `canonical_url` in articleN.json to the Medium URL first
+- Requires: DEVTO_API_KEY env var only
 
 **LinkedIn:** Post each article same day it publishes (10 AM EST). First comment links to Medium article, not homesight.live directly.
 
 **Tags per platform:**
 - Dev.to: webdev, datascience, javascript, discuss
-- Hashnode: webdev, datascience
 - Medium: Real Estate, Housing Market, Personal Finance, Data, Data Science (varies by article)
 
-**Canonical URL rule:** Always set canonical URL on Dev.to and Hashnode to point to the Medium article. SEO credit stays with Medium.
+**Canonical URL rule:** Always set canonical URL on Dev.to to point to the Medium article. SEO credit stays with Medium.
 
 ---
 
