@@ -74,7 +74,9 @@ Dev.to:   https://dev.to/michael_montgomery/5-us-housing-markets-quietly-outperf
 Hashnode: https://michaelkm.hashnode.dev/5-us-housing-markets-quietly-outperforming-...
 ```
 
-The canonical URL on both posts points back to Medium, so all SEO credit stays there. Dev.to and Hashnode become distribution channels only.
+The canonical URL on Dev.to points back to Medium, so all SEO credit stays there.
+
+> **Hashnode note:** Their GraphQL API moved to paid-only in May 2026. Post to Hashnode manually by copying the article body into their editor at hashnode.com. Set the canonical URL to the Medium article URL in Article Settings before publishing.
 
 ---
 

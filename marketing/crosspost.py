@@ -66,7 +66,7 @@ def post_hashnode(title, body, tags, canonical_url, cover_image=None):
         inp["coverImageOptions"] = {"coverImageURL": cover_image}
     r = requests.post(
         "https://gql.hashnode.com/",
-        headers={"Authorization": f"Bearer {HN_KEY}", "Content-Type": "application/json"},
+        headers={"Authorization": HN_KEY, "Content-Type": "application/json"},
         json={"query": mutation, "variables": {"input": inp}},
         timeout=30,
     )
@@ -183,7 +183,7 @@ def audit_hashnode():
     """
     r = requests.post(
         "https://gql.hashnode.com/",
-        headers={"Authorization": f"Bearer {HN_KEY}", "Content-Type": "application/json"},
+        headers={"Authorization": HN_KEY, "Content-Type": "application/json"},
         json={"query": query, "variables": {"pubId": HN_PUB_ID}},
         timeout=30,
     )
@@ -408,10 +408,8 @@ def main():
     else:
         post_devto(title, body, tags_devto, canonical, cover_image)
 
-    if not HN_KEY or not HN_PUB_ID:
-        print("Missing HASHNODE_API_KEY or HASHNODE_PUB_ID — skipping Hashnode")
-    else:
-        post_hashnode(title, body, tags_hashnode, canonical, cover_image)
+    # Hashnode GraphQL API requires paid plan (since 2026-05-13) — post manually at hashnode.com
+    print("Hashnode: post manually at hashnode.com (API is paid-only since May 2026)")
 
 
 if __name__ == "__main__":
