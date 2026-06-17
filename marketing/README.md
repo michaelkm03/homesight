@@ -18,6 +18,45 @@ Install dependency: `pip install requests`
 
 ---
 
+### GA4 Stats setup (one-time, ~10 min)
+
+Required for `--stats` mode. Skip if you only need crosspost/audit.
+
+**1. Install the library**
+```powershell
+pip install google-analytics-data
+```
+
+**2. Enable the API in Google Cloud**
+- Go to [console.cloud.google.com](https://console.cloud.google.com)
+- Select or create a project (any name, e.g. "HomeSight Scripts")
+- Search for "Google Analytics Data API" → Enable it
+
+**3. Create a service account**
+- IAM & Admin → Service Accounts → Create Service Account
+- Name: `homesight-stats` (any name)
+- Skip role assignment → Done
+- Click the service account → Keys → Add Key → JSON → download the file
+- Save it somewhere permanent, e.g. `C:\Users\micha\.gcp\homesight-stats.json`
+
+**4. Grant the service account access to GA4**
+- Go to [analytics.google.com](https://analytics.google.com) → Admin
+- Property Access Management → Add users
+- Paste the service account email (looks like `homesight-stats@your-project.iam.gserviceaccount.com`)
+- Role: **Viewer** → Add
+
+**5. Find your GA4 numeric property ID**
+- GA4 Admin → Property Settings
+- Copy the **Property ID** (a plain number like `123456789`) — NOT the `G-XXXXXX` measurement ID
+
+**6. Set the remaining env vars** (add to `$PROFILE`):
+```powershell
+$env:GA4_PROPERTY_ID              = "123456789"
+$env:GOOGLE_APPLICATION_CREDENTIALS = "C:\Users\micha\.gcp\homesight-stats.json"
+```
+
+---
+
 ### Crosspost scenario (typical flow)
 
 1. Write article → publish on Medium → copy the final published URL.
@@ -36,6 +75,23 @@ Hashnode: https://michaelkm.hashnode.dev/5-us-housing-markets-quietly-outperform
 ```
 
 The canonical URL on both posts points back to Medium, so all SEO credit stays there. Dev.to and Hashnode become distribution channels only.
+
+---
+
+### Stats scenario
+
+```powershell
+python crosspost.py --stats          # last 30 days
+python crosspost.py --stats --days 7 # last 7 days
+```
+
+Prints four sections:
+1. **Summary** — sessions, users, avg engagement time, engagement rate
+2. **Traffic sources** — top 12 by sessions; content platforms (medium.com, dev.to, hashnode) flagged with `*`
+3. **Landing pages** — which pages users land on first (shows if blog traffic hits `/` or bounces)
+4. **Events** — HomeSight-specific GA4 events (zip_search, zip_click, metric_change, metro_search)
+
+Use this weekly after each article publishes to see which platform and article actually drove visits.
 
 ---
 

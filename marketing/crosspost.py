@@ -1,14 +1,18 @@
 """
-crosspost.py — publish or audit your Dev.to / Hashnode accounts
+crosspost.py — publish, audit, or pull GA4 stats for HomeSight content
 
 Modes:
-    python crosspost.py articles/article2.json   # crosspost to both platforms
+    python crosspost.py articles/article2.json   # crosspost to Dev.to + Hashnode
     python crosspost.py --audit                  # audit both accounts for optimizations
+    python crosspost.py --stats                  # GA4 traffic + referral breakdown
+    python crosspost.py --stats --days 7         # same, last 7 days
 
 Required env vars (set once in PowerShell $PROFILE):
-    DEVTO_API_KEY      — dev.to/settings/extensions
-    HASHNODE_API_KEY   — hashnode.com/settings/developer
-    HASHNODE_PUB_ID    — your Hashnode publication ID (Settings > General, ID in URL)
+    DEVTO_API_KEY               — dev.to/settings/extensions
+    HASHNODE_API_KEY            — hashnode.com/settings/developer
+    HASHNODE_PUB_ID             — Hashnode publication ID (Settings > General, ID in URL)
+    GA4_PROPERTY_ID             — numeric GA4 property ID (Admin > Property Settings)
+    GOOGLE_APPLICATION_CREDENTIALS — path to service account JSON (see marketing/README.md)
 """
 
 import os, sys, json, argparse, requests
@@ -66,7 +70,14 @@ def post_hashnode(title, body, tags, canonical_url, cover_image=None):
         json={"query": mutation, "variables": {"input": inp}},
         timeout=30,
     )
-    data = r.json()
+    if not r.text.strip():
+        print(f"Hashnode FAILED: empty response (HTTP {r.status_code})")
+        return
+    try:
+        data = r.json()
+    except Exception:
+        print(f"Hashnode FAILED: non-JSON response (HTTP {r.status_code}) — check HASHNODE_API_KEY")
+        return
     if "errors" in data:
         print(f"Hashnode FAILED: {data['errors']}")
     else:
@@ -113,10 +124,10 @@ def audit_devto():
         print(f"  {'Title':<48} {'Views':>6} {'Reacts':>7} {'Cover':>6} {'Canonical':>10}")
         print("  " + "-" * 82)
         for a in articles:
-            title        = a.get('title', '')[:46]
-            views        = a.get('page_views_count', 0)
-            reactions    = a.get('reactions_count', 0)
-            has_cover    = bool(a.get('cover_image'))
+            title         = a.get('title', '')[:46]
+            views         = a.get('page_views_count', 0)
+            reactions     = a.get('reactions_count', 0)
+            has_cover     = bool(a.get('cover_image'))
             has_canonical = bool(a.get('canonical_url'))
             print(f"  {title:<48} {views:>6} {reactions:>7} {'YES' if has_cover else 'NO':>6} {'YES' if has_canonical else 'NO':>10}")
             if not has_cover:
@@ -189,8 +200,8 @@ def audit_hashnode():
         print(f"\n=== Hashnode ===\nAudit query failed: {data['errors']}")
         return
 
-    me   = data.get("data", {}).get("me", {})
-    pub  = data.get("data", {}).get("publication", {})
+    me    = data.get("data", {}).get("me", {})
+    pub   = data.get("data", {}).get("publication", {})
     posts = [e["node"] for e in (pub.get("posts", {}).get("edges") or [])]
 
     print("\n=== Hashnode ===")
@@ -237,19 +248,141 @@ def audit_hashnode():
         print("\nAll clear.")
 
 
+# ── GA4 Stats ─────────────────────────────────────────────────────────────────
+
+def stats_ga4(days=30):
+    try:
+        from google.analytics.data_v1beta import BetaAnalyticsDataClient
+        from google.analytics.data_v1beta.types import (
+            RunReportRequest, DateRange, Metric, Dimension, OrderBy
+        )
+    except ImportError:
+        print("Missing dependency: pip install google-analytics-data")
+        print("Then complete GA4 setup — see marketing/README.md")
+        return
+
+    property_id = os.environ.get("GA4_PROPERTY_ID", "")
+    if not property_id:
+        print("Missing GA4_PROPERTY_ID env var — see marketing/README.md for setup")
+        return
+
+    creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+    if not creds_path or not os.path.exists(creds_path):
+        print("Missing or invalid GOOGLE_APPLICATION_CREDENTIALS (path to service account JSON)")
+        print("See marketing/README.md for setup")
+        return
+
+    client    = BetaAnalyticsDataClient()
+    prop      = f"properties/{property_id}"
+    date_range = DateRange(start_date=f"{days}daysAgo", end_date="today")
+    by_sessions = OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)
+
+    print(f"\n=== GA4 — Last {days} Days ===")
+
+    # Summary
+    summary = client.run_report(RunReportRequest(
+        property=prop,
+        metrics=[
+            Metric(name="sessions"),
+            Metric(name="totalUsers"),
+            Metric(name="averageSessionDuration"),
+            Metric(name="engagementRate"),
+        ],
+        date_ranges=[date_range],
+    ))
+    total_sessions = 0
+    if summary.rows:
+        r            = summary.rows[0]
+        total_sessions = int(r.metric_values[0].value)
+        users        = int(r.metric_values[1].value)
+        duration     = float(r.metric_values[2].value)
+        eng_rate     = float(r.metric_values[3].value) * 100
+        print(f"Sessions   : {total_sessions:,}")
+        print(f"Users      : {users:,}")
+        print(f"Avg Time   : {int(duration // 60)}m {int(duration % 60)}s")
+        print(f"Engagement : {eng_rate:.1f}%")
+
+    # Traffic sources
+    sources_r = client.run_report(RunReportRequest(
+        property=prop,
+        dimensions=[Dimension(name="sessionSource"), Dimension(name="sessionMedium")],
+        metrics=[Metric(name="sessions"), Metric(name="totalUsers")],
+        date_ranges=[date_range],
+        order_bys=[by_sessions],
+        limit=12,
+    ))
+    content_platforms = {"medium.com", "dev.to", "hashnode.dev", "hashnode"}
+    print(f"\n{'Source':<28} {'Channel':<12} {'Sessions':>9} {'Users':>7}")
+    print("-" * 60)
+    content_sessions = 0
+    for row in sources_r.rows:
+        source  = row.dimension_values[0].value
+        channel = row.dimension_values[1].value
+        s       = int(row.metric_values[0].value)
+        u       = int(row.metric_values[1].value)
+        marker  = " *" if source in content_platforms else ""
+        print(f"{source:<28} {channel:<12} {s:>9,} {u:>7,}{marker}")
+        if source in content_platforms:
+            content_sessions += s
+
+    if content_sessions and total_sessions:
+        pct = content_sessions / total_sessions * 100
+        print(f"\n  * content platforms: {content_sessions:,} sessions ({pct:.1f}% of total)")
+
+    # Top landing pages
+    pages_r = client.run_report(RunReportRequest(
+        property=prop,
+        dimensions=[Dimension(name="landingPage")],
+        metrics=[Metric(name="sessions"), Metric(name="totalUsers")],
+        date_ranges=[date_range],
+        order_bys=[by_sessions],
+        limit=8,
+    ))
+    print(f"\n{'Landing Page':<42} {'Sessions':>9} {'Users':>7}")
+    print("-" * 62)
+    for row in pages_r.rows:
+        page = row.dimension_values[0].value[:40]
+        s    = int(row.metric_values[0].value)
+        u    = int(row.metric_values[1].value)
+        print(f"{page:<42} {s:>9,} {u:>7,}")
+
+    # Custom events (HomeSight-specific)
+    events_r = client.run_report(RunReportRequest(
+        property=prop,
+        dimensions=[Dimension(name="eventName")],
+        metrics=[Metric(name="eventCount"), Metric(name="totalUsers")],
+        date_ranges=[date_range],
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="eventCount"), desc=True)],
+        limit=10,
+    ))
+    print(f"\n{'Event':<30} {'Count':>8} {'Users':>7}")
+    print("-" * 48)
+    for row in events_r.rows:
+        event = row.dimension_values[0].value[:28]
+        c     = int(row.metric_values[0].value)
+        u     = int(row.metric_values[1].value)
+        print(f"{event:<30} {c:>8,} {u:>7,}")
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Crosspost articles to Dev.to + Hashnode, or audit both accounts"
+        description="Crosspost articles to Dev.to + Hashnode, audit accounts, or pull GA4 stats"
     )
     parser.add_argument("config", nargs="?", help="Path to article JSON config (crosspost mode)")
-    parser.add_argument("--audit", "-a", action="store_true", help="Audit both accounts for optimization opportunities")
+    parser.add_argument("--audit", "-a", action="store_true", help="Audit Dev.to + Hashnode for optimization opportunities")
+    parser.add_argument("--stats", "-s", action="store_true", help="Pull GA4 traffic + referral breakdown")
+    parser.add_argument("--days",  "-d", type=int, default=30, help="Date range for --stats (default: 30)")
     args = parser.parse_args()
 
     if args.audit:
         audit_devto()
         audit_hashnode()
+        return
+
+    if args.stats:
+        stats_ga4(days=args.days)
         return
 
     if not args.config:
