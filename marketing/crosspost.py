@@ -346,7 +346,7 @@ def stats_ga4(days=30):
         u    = int(row.metric_values[1].value)
         print(f"{page:<42} {s:>9,} {u:>7,}")
 
-    # Custom events (HomeSight-specific)
+    # Events
     events_r = client.run_report(RunReportRequest(
         property=prop,
         dimensions=[Dimension(name="eventName")],
