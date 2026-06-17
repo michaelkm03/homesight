@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>HomeSight — Loading Animation Preview</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 40px;
+  }
+  .label {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase; color: rgba(110,231,183,0.4);
+  }
+  #lm-mark { animation: lm-pulse 1.8s ease-in-out infinite; }
+  @keyframes lm-pulse {
+    0%, 100% { filter: drop-shadow(0 0 3.6px rgba(110,231,183,0.20)); }
+    50%       { filter: drop-shadow(0 0 10px  rgba(110,231,183,0.45))
+                        drop-shadow(0 0 20px  rgba(110,231,183,0.18)); }
+  }
+</style>
+</head>
+<body>
+
+<div class="label">Loading animation — combined</div>
+
+<!--
+  Combined from 2 versions ago + straight arrow:
+  • Second peak back to y=15 (the original height, more dramatic rise)
+  • Dip after second peak: y=24 (shallower than old y=26 — more consistent rhythm)
+  • Kink removed — straight line from dip (67,24) through base (77,14) to tip (86,5)
+  • Rhythm: rises of 30, 31, 19 / drops of 13, 9 — progressively smaller = consistent upward
+  • Arrow: 45° direction, 10% wider wings
+-->
+<!--
+  Previous uptick: (33,46)→(56,15) = vector(23,−31), angle 53.4° above horizontal
+  New arrow angle: 53.4 + 3 = 56.4°  →  dir=(0.552,−0.834), perp=(0.834,0.552)
+  Length 32 from dip (67,24):  tip=(85,−3)
+  Arrowhead base 14 units before tip: (77,9)
+  Wings: prev half-width 6.6 × 1.10 = 7.3  →  (83,13) and (71,5)
+  ViewBox expanded upward by 6 to fit tip at y=−3
+-->
+<svg id="lm-mark"
+  viewBox="0 -6 96 74" width="192" height="148"
+  fill="none" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- depth shadow (+3,+3) -->
+  <polyline points="6,66 25,36 36,49 59,18 70,27 80,12"
+    stroke="#1a5c3a" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="88,0 86,16 74,8" fill="#1a5c3a"/>
+
+  <!-- main -->
+  <polyline points="3,63 22,33 33,46 56,15 67,24 77,9"
+    stroke="#6ee7b7" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="85,-3 83,13 71,5" fill="#6ee7b7"/>
+
+</svg>
+
+<div class="label">approve to implement → or request changes</div>
+
+</body>
+</html>
