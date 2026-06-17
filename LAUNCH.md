@@ -213,6 +213,14 @@ Each page must:
 - **Agent use case:** Agent copies URL → pastes to client. Client opens clean data page, no learning curve.
 - **Effort:** ~1 day (FastAPI Jinja2 template)
 
+### F4 — Daily Data Refresh Cron Job
+- **What:** Systemd timer on the Lightsail server — runs `ingest.py --refresh` daily, restarts `homesight.service` on success.
+- **When:** 3 AM EST (08:00 UTC) daily.
+- **Script:** `/usr/local/bin/homesight-ingest` — checks exit code before restarting; logs to `/var/log/homesight-ingest.log`.
+- **Failure path:** Service keeps running on last-good data. SNS alert fires via existing `homesight-alerts` topic.
+- **Note:** Zillow publishes ZHVI monthly — most daily runs re-download identical data, but guarantees site reflects new data within 24hrs of any Zillow publish.
+- **Effort:** ~1 hr (script + systemd timer unit + deploy)
+
 ### F3 — Social Share Button
 - **What:** Share icon in ZIP panel. Mini share sheet: Twitter/X, LinkedIn, Copy Link.
 - **Twitter/X:** Pre-filled — "ZIP {zip} in {city} appreciated {pct}% over 3 years. Full data: homesight.live/zip/{zip} #realestate #housing"
