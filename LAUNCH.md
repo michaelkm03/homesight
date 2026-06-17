@@ -196,6 +196,35 @@ Each page must:
 
 ---
 
+## Future Feature Backlog
+
+### F1 — Price-to-Rent Ratio
+- **What:** Median home value ÷ annual rent per ZIP. New heatmap metric + panel display.
+- **Interpretation shown to user:** <15 = cash flow market, 15–20 = neutral, >20 = appreciation play. Show vs. national average.
+- **Server:** Add `ptr` field to `heatmap_cache` + ZIP detail API. No new data — pure math on existing fields.
+- **UI:** Add to metric dropdown. Panel shows value + benchmark. Color scale inverted (low = green).
+- **Audience:** Real estate investors screening cash flow vs. appreciation markets.
+- **Effort:** ~3–4 hrs
+
+### F2 — Shareable ZIP Report Page
+- **What:** SSR page at `/zip/{zipcode}` — clean, printable layout with all key stats for a ZIP.
+- **Contains:** ZIP, city/metro, home value, appreciation (1/3/5/10/20yr), rent trend, P/R ratio, metro rank, last updated.
+- **SSR required:** OG tags render per-ZIP so social previews show real data. Currently SPA = blank preview.
+- **Agent use case:** Agent copies URL → pastes to client. Client opens clean data page, no learning curve.
+- **Effort:** ~1 day (FastAPI Jinja2 template)
+
+### F3 — Social Share Button
+- **What:** Share icon in ZIP panel. Mini share sheet: Twitter/X, LinkedIn, Copy Link.
+- **Twitter/X:** Pre-filled — "ZIP {zip} in {city} appreciated {pct}% over 3 years. Full data: homesight.live/zip/{zip} #realestate #housing"
+- **LinkedIn:** Share intent URL targeting `/zip/{zip}` page.
+- **Copy Link:** Copies `homesight.live/zip/{zip}` to clipboard. Toast confirmation.
+- **Placement:** Bottom of ZIP panel.
+- **Depends on:** F2 (shareable ZIP page must exist first)
+- **Audience:** Real estate agents sharing data with clients; investors sharing finds.
+- **Effort:** ~2 hrs (Web Share API + Twitter/LinkedIn fallbacks)
+
+---
+
 ## Month 2
 
 - [ ] **M1** — Begin programmatic ZIP-level SSR pages (`/housing-market/{zip}`)
