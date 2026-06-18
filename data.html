@@ -78,6 +78,9 @@
       gap: 20px;
       margin-bottom: 52px;
     }
+    .group-header {
+      grid-column: 1 / -1;
+    }
 
     .source-card {
       background: var(--surface);
@@ -183,6 +186,22 @@
     .limit-list li::before { content: "—"; position: absolute; left: 0; color: var(--border); }
     .limit-list li strong { color: var(--text); font-weight: 700; }
 
+    /* ── Country group headers ── */
+    .group-header {
+      display: flex; align-items: center; gap: 12px;
+      margin: 20px 0 4px;
+    }
+    .group-flag {
+      font-size: 1.25rem; line-height: 1;
+    }
+    .group-label {
+      font-size: 0.63rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.14em; color: var(--muted);
+    }
+    .group-line {
+      flex: 1; height: 1px; background: var(--border);
+    }
+
     /* ── Responsive ── */
     @media (max-width: 600px) {
       #content { padding-left: 16px; padding-right: 16px; }
@@ -205,10 +224,16 @@
   <div id="hero">
     <div id="hero-eyebrow">Transparency</div>
     <h2>Where the data comes from</h2>
-    <p>HomeSight combines three public datasets to build every chart, ranking, and trend on the map. All sources are free, publicly available, and updated monthly by their respective publishers.</p>
+    <p>HomeSight combines five public datasets across two countries to build every chart, ranking, and trend on the map. All sources are free, publicly available, and updated regularly by their respective government agencies and publishers.</p>
   </div>
 
   <div id="cards">
+
+    <div class="group-header">
+      <span class="group-flag">🇺🇸</span>
+      <span class="group-label">United States</span>
+      <span class="group-line"></span>
+    </div>
 
     <!-- Zillow Research -->
     <div class="source-card">
@@ -311,6 +336,80 @@
           </div>
         </div>
         <a href="https://www.geonames.org/" target="_blank" rel="noopener" class="card-link">View source</a>
+      </div>
+    </div>
+
+    <div class="group-header">
+      <span class="group-flag">🇬🇧</span>
+      <span class="group-label">United Kingdom</span>
+      <span class="group-line"></span>
+    </div>
+
+    <!-- HM Land Registry -->
+    <div class="source-card">
+      <div class="card-accent" style="background:#C8102E"></div>
+      <div class="card-body">
+        <div class="card-badge" style="background:rgba(200,16,46,0.08);color:#9B0022;border:1px solid rgba(200,16,46,0.22)">Primary Source</div>
+        <div class="card-title">HM Land Registry — Price Paid Data</div>
+        <div class="card-desc">The UK government's official record of every residential property transaction in England &amp; Wales since 1995 — over 31 million sales. HomeSight aggregates these transactions to postcode-sector level monthly medians to produce the UK heatmap and appreciation history.</div>
+        <div class="card-tags">
+          <span class="tag">Transaction Prices</span>
+          <span class="tag">Appreciation</span>
+          <span class="tag">Price History</span>
+          <span class="tag">England &amp; Wales</span>
+        </div>
+        <div class="card-meta">
+          <div>
+            <div class="meta-label">Coverage</div>
+            <div class="meta-value">8,782 sectors</div>
+          </div>
+          <div>
+            <div class="meta-label">Frequency</div>
+            <div class="meta-value">Monthly</div>
+          </div>
+          <div>
+            <div class="meta-label">History</div>
+            <div class="meta-value">Jan 1995 – now</div>
+          </div>
+          <div>
+            <div class="meta-label">License</div>
+            <div class="meta-value">OGL v3.0</div>
+          </div>
+        </div>
+        <a href="https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads" target="_blank" rel="noopener" class="card-link">View source</a>
+      </div>
+    </div>
+
+    <!-- GeoLytix / Edinburgh DataShare -->
+    <div class="source-card">
+      <div class="card-accent" style="background:#012169"></div>
+      <div class="card-body">
+        <div class="card-badge" style="background:rgba(1,33,105,0.07);color:#012169;border:1px solid rgba(1,33,105,0.2)">Boundaries</div>
+        <div class="card-title">GeoLytix — UK Postcode Sectors</div>
+        <div class="card-desc">Open boundary polygons for every UK postcode sector, distributed via the University of Edinburgh DataShare. HomeSight uses these to draw the sector shapes on the UK map. Postcode sectors (e.g. <code>SW1A 1</code>) are derived from full postcodes by taking the outward code plus the first digit of the inward code — roughly equivalent in granularity to U.S. ZIP codes.</div>
+        <div class="card-tags">
+          <span class="tag">Sector Polygons</span>
+          <span class="tag">Map Rendering</span>
+        </div>
+        <div class="card-meta">
+          <div>
+            <div class="meta-label">Coverage</div>
+            <div class="meta-value">Great Britain</div>
+          </div>
+          <div>
+            <div class="meta-label">License</div>
+            <div class="meta-value">Open Data</div>
+          </div>
+          <div>
+            <div class="meta-label">Format</div>
+            <div class="meta-value">Shapefile</div>
+          </div>
+          <div>
+            <div class="meta-label">Sectors</div>
+            <div class="meta-value">~9,000</div>
+          </div>
+        </div>
+        <a href="https://datashare.ed.ac.uk/handle/10283/2597" target="_blank" rel="noopener" class="card-link">View source</a>
       </div>
     </div>
 
