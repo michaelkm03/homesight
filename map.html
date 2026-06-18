@@ -69,7 +69,7 @@
     }
     #data-btn:hover { border-color: rgba(110,231,183,0.6); color: var(--green); background: rgba(110,231,183,0.10); }
 
-    #search-wrap { position: relative; margin-left: auto; }
+    #search-wrap { position: relative; margin-left: 10px; }
     #zip-input {
       width: 210px; padding: 7px 34px 7px 12px;
       background: rgba(110,231,183,0.06); border: 1px solid rgba(110,231,183,0.28);
@@ -126,6 +126,42 @@
     }
     .layer-pill.active { background: var(--green); color: #0a2e1c; border-color: var(--green); }
     .layer-pill:hover:not(.active) { border-color: rgba(110,231,183,0.4); color: var(--text); }
+
+    #country-toggle {
+      display: flex; align-items: center; margin-left: auto;
+      background: rgba(0,0,0,0.3);
+      border: 1.5px solid rgba(255,255,255,0.18);
+      border-radius: 8px; padding: 3px; gap: 2px;
+      flex-shrink: 0;
+    }
+    .country-pill {
+      padding: 6px 26px; font-size: 0.74rem; font-weight: 800;
+      cursor: pointer; border: 1.5px solid transparent; border-radius: 6px;
+      background: transparent; color: rgba(255,255,255,0.22);
+      font-family: inherit; letter-spacing: 0.12em; text-transform: uppercase;
+      white-space: nowrap; text-align: center; min-width: 80px;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s, border-color 0.2s;
+    }
+    /* US: red-dominant — stripes read left-to-right, red is the flag's primary color */
+    #pill-us.active {
+      background: linear-gradient(135deg, #012169 0%, #012169 28%, #ffffff 50%, #C8102E 72%, #C8102E 100%);
+      color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.65);
+      border-color: rgba(0,40,104,0.9);
+      box-shadow: 0 0 22px rgba(0,40,104,0.7), 0 0 8px rgba(0,40,104,1),
+                  inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    #pill-uk.active {
+      background: linear-gradient(90deg, #C8102E 0%, #8B001A 50%, #002868 100%);
+      color: #fff;
+      border-color: rgba(200,16,46,0.8);
+      box-shadow: 0 0 22px rgba(200,16,46,0.6), 0 0 8px rgba(200,16,46,0.9),
+                  inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    .country-pill:hover:not(.active) {
+      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.55);
+      border-color: rgba(255,255,255,0.1);
+    }
 
     .legend-row { display: flex; align-items: center; gap: 9px; margin-bottom: 5px; }
     .legend-swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
@@ -557,6 +593,10 @@
   <h1><a href="https://homesight.live/" style="text-decoration:none;color:inherit;"><img src="/static/logo.svg?v=2" alt="" width="28" height="22" style="display:inline-block;vertical-align:middle;margin-right:8px;margin-bottom:2px;">Home<span>Sight</span></a></h1>
   <button id="rankings-btn" onclick="toggleRankings()">Rankings</button>
   <a href="/data" id="data-btn">Data Sources</a>
+  <div id="country-toggle">
+    <button class="country-pill active" id="pill-us" onclick="switchCountry('us')">US</button>
+    <button class="country-pill" id="pill-uk" onclick="switchCountry('uk')">UK</button>
+  </div>
   <div id="search-wrap">
     <input id="zip-input" type="text" maxlength="5" placeholder="Search ZIP code…" />
     <button id="zip-go" onclick="jumpToZip()">→</button>
@@ -692,7 +732,8 @@ const VISIT_KEY    = "homesight_last_visit";
 const LAST_ZIP_KEY = "homesight_last_zip";
 const IDB_NAME     = "homesight";
 const IDB_STORE    = "cache";
-const IDB_BOUNDS   = "boundaries";
+const IDB_BOUNDS    = "boundaries";
+const IDB_UK_BOUNDS = "uk_boundaries";
 
 // ── IndexedDB helpers ─────────────────────────────────────────────────────────
 function _idbOpen() {
@@ -838,6 +879,20 @@ const RENT_BREAKS = [
   { max: Infinity, color: "#a50026", label: "> $3,000/mo"  },
 ];
 
+const UK_VALUE_BREAKS = [
+  { max: 150000,   color: "#313695", label: "< £150K"    },
+  { max: 250000,   color: "#4575b4", label: "£150K–250K" },
+  { max: 400000,   color: "#74add1", label: "£250K–400K" },
+  { max: 600000,   color: "#fdae61", label: "£400K–600K" },
+  { max: 1000000,  color: "#f46d43", label: "£600K–1M"   },
+  { max: Infinity, color: "#a50026", label: "> £1M"       },
+];
+
+function fmtGBP(v) {
+  if (!v) return "—";
+  return v >= 1000000 ? "£"+(v/1000000).toFixed(2)+"M" : "£"+Math.round(v).toLocaleString();
+}
+
 
 function getColor(val, metric) {
   const isRent = currentLayer === "rent";
@@ -860,6 +915,9 @@ function fmtRent(v) { return v != null ? "$" + Math.round(v).toLocaleString() + 
 // ── State ─────────────────────────────────────────────────────────────────────
 let map, geoLayer, zipToLayer = {}, valueMap = {}, allData = [], currentMetric = "yoy", currentLayer = "home";
 let activeLayer = null, chartInstances = {};
+let currentCountry = "us";
+let ukGeoLayer = null, ukToLayer = {}, ukValueMap = {}, ukActiveLayer = null, ukDataLoaded = false;
+let ukSectorCache = {}, ukStatsData = null, usStatsData = {}, ukGeojsonData = null;
 const DEFAULT_ZIP = "98106";
 const DEFAULT_CENTER = [47.52, -122.37];
 
@@ -901,12 +959,13 @@ document.addEventListener("mousemove", e => {
 // ── Legend ────────────────────────────────────────────────────────────────────
 function buildLegend(metric) {
   const isRent = currentLayer === "rent";
+  const isUK   = currentCountry === "uk";
   const breaks = metric === "yoy"   ? YOY_BREAKS   :
                  metric === "yoy3"  ? YOY3_BREAKS  :
                  metric === "yoy5"  ? YOY5_BREAKS  :
                  metric === "yoy10" ? YOY10_BREAKS :
                  metric === "yoy20" ? YOY20_BREAKS :
-                 (isRent ? RENT_BREAKS : VALUE_BREAKS);
+                 (isUK ? UK_VALUE_BREAKS : isRent ? RENT_BREAKS : VALUE_BREAKS);
   document.getElementById("legend-items").innerHTML = breaks.map(b =>
     `<div class="legend-row">
        <div class="legend-swatch" style="background:${b.color}"></div>
@@ -1048,8 +1107,10 @@ function changeMetric() {
   currentMetric = document.getElementById("legend-select").value;
   gtag("event", "metric_change", { metric: currentMetric });
   buildLegend(currentMetric);
-  if (geoLayer) {
-    geoLayer.setStyle(feature => featureStyle(feature,
+  if (currentCountry === "uk") {
+    if (ukGeoLayer) ukGeoLayer.setStyle(f => featureStyleUK(f, ukActiveLayer?.feature === f));
+  } else {
+    if (geoLayer) geoLayer.setStyle(feature => featureStyle(feature,
       activeLayer && activeLayer.feature === feature));
   }
 }
@@ -1059,6 +1120,28 @@ function jumpToZip() {
   const inp = document.getElementById("zip-input");
   const raw = inp.value.trim();
   if (!raw) return;
+
+  if (currentCountry === "uk") {
+    let sector = raw.toUpperCase().trim();
+    // Full postcode (e.g. "SW1A 1AA") → extract sector
+    const fullMatch = sector.match(/^([A-Z]{1,2}[0-9][0-9A-Z]?)\s+([0-9])[A-Z]{2}$/);
+    if (fullMatch) sector = fullMatch[1] + " " + fullMatch[2];
+    // No space (e.g. "SW1A1") → insert space before last char
+    else if (!/\s/.test(sector) && sector.length >= 3) sector = sector.slice(0, -1) + " " + sector.slice(-1);
+    if (!/^[A-Z]{1,2}[0-9][0-9A-Z]? [0-9]$/.test(sector)) {
+      setMsg("Enter a postcode sector (e.g. SW1A 1)", true); return;
+    }
+    const d = ukValueMap[sector];
+    if (!d) { setMsg("No data for sector " + sector, true); return; }
+    const layer = ukToLayer[sector];
+    if (layer) map.fitBounds(layer.getBounds(), { padding: [60, 60], maxZoom: 13, animate: true });
+    highlightUKSector(sector);
+    openUKPanel(sector, d);
+    gtag("event", "sector_search", { sector_code: sector, source: "header" });
+    inp.value = ""; inp.blur();
+    return;
+  }
+
   const zip = raw.padStart(5, "0");
   if (!/^\d{5}$/.test(zip)) return;
   const d = valueMap[zip];
@@ -1066,8 +1149,7 @@ function jumpToZip() {
   gtag("event", "zip_search", { zip_code: zip, source: "header" });
   if (d.lat && d.lng) map.setView([d.lat, d.lng], 12, { animate: true });
   openPanel(zip);
-  inp.value = "";
-  inp.blur();
+  inp.value = ""; inp.blur();
 }
 
 document.getElementById("zip-input").addEventListener("keydown", e => {
@@ -1137,6 +1219,7 @@ async function boot() {
   allData.forEach(d => { valueMap[d.z] = d; });
 
   const stats = statsRes.ok ? await statsRes.json() : {};
+  usStatsData = stats;
   document.getElementById("stat-median").textContent = fmtVal(stats.median_value);
   document.getElementById("stat-yoy").textContent    = stats.median_yoy != null ? (stats.median_yoy >= 0 ? "+" : "") + stats.median_yoy + "%" : "—";
   document.getElementById("stat-count").textContent  = allData.length.toLocaleString();
@@ -1193,13 +1276,16 @@ async function boot() {
   let _zoomTimer = null;
   let _lastWeightTier = null;
   map.on("zoomend", () => {
-    if (!geoLayer) return;
     const tier = strokeWeight();
-    if (tier === _lastWeightTier) return; // weight unchanged — skip restyle
+    if (tier === _lastWeightTier) return;
     _lastWeightTier = tier;
     clearTimeout(_zoomTimer);
     _zoomTimer = setTimeout(() => {
-      geoLayer.setStyle(f => featureStyle(f, activeLayer?.feature === f));
+      if (currentCountry === "uk") {
+        if (ukGeoLayer) ukGeoLayer.setStyle(f => featureStyleUK(f, ukActiveLayer?.feature === f));
+      } else {
+        if (geoLayer) geoLayer.setStyle(f => featureStyle(f, activeLayer?.feature === f));
+      }
     }, 80);
   });
 
@@ -1281,17 +1367,23 @@ async function openPanel(zip) {
   }
 }
 
-// Deselects 1 layer immediately so the close animation isn't blocked by a 26K restyle;
-// full opacity restore is deferred to the next frame after the CSS transition starts.
 function closePanel() {
-  const prev = activeLayer;
+  const prevUS = activeLayer;
+  const prevUK = ukActiveLayer;
   activeLayer = null;
+  ukActiveLayer = null;
   document.getElementById("panel").classList.remove("open");
   document.getElementById("map").classList.remove("panel-open");
-  if (prev) {
-    prev.setStyle(featureStyle(prev.feature, false)); // instantly deselect
-    requestAnimationFrame(() => { // restore dimmed layers after close animation starts
+  if (prevUS) {
+    prevUS.setStyle(featureStyle(prevUS.feature, false));
+    requestAnimationFrame(() => {
       if (!activeLayer && geoLayer) geoLayer.setStyle(f => featureStyle(f));
+    });
+  }
+  if (prevUK) {
+    prevUK.setStyle(featureStyleUK(prevUK.feature, false));
+    requestAnimationFrame(() => {
+      if (!ukActiveLayer && ukGeoLayer) ukGeoLayer.setStyle(f => featureStyleUK(f));
     });
   }
 }
@@ -1671,6 +1763,330 @@ function zoomToRankRow(zip) {
   document.getElementById("rankings-panel").classList.remove("open");
   document.getElementById("rankings-btn").classList.remove("active");
   openPanel(zip);
+}
+
+// ── UK: style a GeoJSON feature ───────────────────────────────────────────────
+function featureStyleUK(feature, selected = false) {
+  const sector = feature.properties.sector;
+  const d = ukValueMap[sector];
+  const val = currentMetric === "yoy"   ? d?.y   :
+              currentMetric === "yoy3"  ? d?.y3  :
+              currentMetric === "yoy5"  ? d?.y5  :
+              currentMetric === "yoy10" ? d?.y10 :
+              currentMetric === "yoy20" ? d?.y20 :
+              d?.v;
+  const breaks = currentMetric === "yoy"   ? YOY_BREAKS   :
+                 currentMetric === "yoy3"  ? YOY3_BREAKS  :
+                 currentMetric === "yoy5"  ? YOY5_BREAKS  :
+                 currentMetric === "yoy10" ? YOY10_BREAKS :
+                 currentMetric === "yoy20" ? YOY20_BREAKS :
+                 UK_VALUE_BREAKS;
+  if (val == null) return { fillColor: "#000", fillOpacity: 0, color: "rgba(0,0,0,0)", weight: 0, opacity: 0 };
+  let color = "#555";
+  for (const b of breaks) if (val <= b.max) { color = b.color; break; }
+  const hasSelection = ukActiveLayer !== null;
+  return {
+    fillColor:   color,
+    fillOpacity: selected ? 0.75 : hasSelection ? 0.26 : 0.6,
+    color:       selected ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.1)",
+    weight:      selected ? 2.5 : hasSelection ? 0.2 : strokeWeight(),
+    opacity:     1,
+  };
+}
+
+// ── UK: render boundaries ─────────────────────────────────────────────────────
+function renderUKBoundaries(geojson) {
+  if (ukGeoLayer) { map.removeLayer(ukGeoLayer); ukGeoLayer = null; }
+  ukToLayer = {};
+
+  ukGeoLayer = L.geoJSON(geojson, {
+    renderer: L.canvas({ padding: 0.5 }),
+    style: feature => featureStyleUK(feature),
+    onEachFeature: (feature, layer) => {
+      const sector = feature.properties.sector;
+      const d = ukValueMap[sector] || {};
+      ukToLayer[sector] = layer;
+
+      layer.on("mouseover", () => {
+        if (ukActiveLayer === layer) return;
+        const hasSelection = ukActiveLayer !== null;
+        layer.setStyle({
+          fillOpacity: hasSelection ? 0.45 : 0.82,
+          color: "rgba(255,255,255,0.6)",
+          weight: Math.max(strokeWeight(), 0.8),
+        });
+        const isValue = !currentMetric.startsWith("yoy");
+        const val = currentMetric === "yoy"   ? d.y   :
+                    currentMetric === "yoy3"  ? d.y3  :
+                    currentMetric === "yoy5"  ? d.y5  :
+                    currentMetric === "yoy10" ? d.y10 :
+                    currentMetric === "yoy20" ? d.y20 : d.v;
+        const yoyLabel = currentMetric === "yoy10" ? "10-yr" : currentMetric === "yoy20" ? "20-yr" :
+                         currentMetric === "yoy5"  ? "5-yr"  : currentMetric === "yoy3"  ? "3-yr"  : "YoY";
+        const yoyColor = val == null ? "" : val >= 0 ? "color:#6ee7b7" : "color:#fb7185";
+        const yoyFmt   = isValue ? "" : (val == null ? "—" : (val >= 0 ? "▲ +" : "▼ ") + val.toFixed(1) + "% " + yoyLabel);
+        tooltip.innerHTML = `
+          <div class="tt-zip">${sector}</div>
+          <div class="tt-value">${fmtGBP(d.v)}</div>
+          ${!isValue ? `<div class="tt-yoy" style="${yoyColor}">${yoyFmt}</div>` : ""}
+          <div class="tt-hint">Click for price history -></div>`;
+        tooltip.style.display = "block";
+      });
+
+      layer.on("mouseout", () => {
+        if (ukActiveLayer !== layer) layer.setStyle(featureStyleUK(feature));
+        tooltip.style.display = "none";
+      });
+
+      layer.on("click", () => {
+        if (ukActiveLayer === layer) { closePanel(); return; }
+        highlightUKSector(sector);
+        openUKPanel(sector, d);
+      });
+    },
+  }).addTo(map);
+}
+
+// ── UK: highlight a sector ────────────────────────────────────────────────────
+function highlightUKSector(sector) {
+  const newLayer = ukToLayer[sector] || null;
+  if (newLayer === ukActiveLayer) return;
+  const prev = ukActiveLayer;
+  ukActiveLayer = newLayer;
+  if (!ukGeoLayer) return;
+  if (prev === null) {
+    ukGeoLayer.setStyle(f => featureStyleUK(f, f.properties.sector === sector));
+  } else {
+    prev.setStyle(featureStyleUK(prev.feature, false));
+    if (newLayer) newLayer.setStyle(featureStyleUK(newLayer.feature, true));
+  }
+  if (ukActiveLayer) ukActiveLayer.bringToFront();
+}
+
+// ── UK: sector detail panel ───────────────────────────────────────────────────
+async function openUKPanel(sector, heatmapData) {
+  document.getElementById("panel-zip").textContent  = sector;
+  document.getElementById("panel-loc").textContent  = "England & Wales";
+  document.getElementById("panel-stats").innerHTML  = "";
+  document.getElementById("panel-charts").innerHTML = "";
+  Object.values(chartInstances).forEach(c => c.destroy());
+  chartInstances = {};
+  document.getElementById("panel-hero").style.display  = "none";
+  document.getElementById("listing-links").style.display = "none";
+  document.getElementById("panel").classList.add("open");
+  document.getElementById("map").classList.add("panel-open");
+  document.getElementById("map-msg").style.display = "none";
+
+  // Investment badge
+  const badge = document.getElementById("invest-badge");
+  if (heatmapData) {
+    let score = 0;
+    if (heatmapData.y  != null) score += heatmapData.y  > 5 ? 2 : heatmapData.y  > 0 ? 1 : -1;
+    if (heatmapData.y5 != null) score += heatmapData.y5 > 25 ? 2 : heatmapData.y5 > 0 ? 1 : -1;
+    if (score >= 3)      { badge.textContent = "⬆ Strong Investment Signal";  badge.className = "invest-badge badge-strong"; }
+    else if (score >= 1) { badge.textContent = "→ Moderate Investment Signal"; badge.className = "invest-badge badge-moderate"; }
+    else                 { badge.textContent = "⬇ Caution — Declining Trend";  badge.className = "invest-badge badge-caution"; }
+  } else { badge.textContent = ""; }
+
+  if (heatmapData?.v != null) {
+    document.getElementById("panel-hero-label").textContent = "Median Sale Price (GBP)";
+    document.getElementById("panel-hero-value").textContent = fmtGBP(heatmapData.v);
+    const yoyEl = document.getElementById("panel-hero-yoy");
+    if (heatmapData.y != null) {
+      yoyEl.textContent = (heatmapData.y >= 0 ? "▲ +" : "▼ ") + heatmapData.y.toFixed(1) + "% year over year";
+      yoyEl.className   = heatmapData.y >= 0 ? "green" : "red";
+    } else { yoyEl.textContent = ""; }
+    document.getElementById("panel-hero").style.display = "block";
+  }
+
+  const apprRows = [
+    ["1yr", heatmapData?.y], ["3yr", heatmapData?.y3],
+    ["5yr", heatmapData?.y5], ["10yr", heatmapData?.y10], ["20yr", heatmapData?.y20],
+  ].filter(([, v]) => v != null);
+  if (apprRows.length) {
+    const maxAbs = Math.max(...apprRows.map(([, v]) => Math.abs(v)), 1);
+    document.getElementById("panel-stats").innerHTML = `
+      <div id="appr-section" style="grid-column:1/-1">
+        <span class="p-stat-label">Appreciation History</span>
+        ${apprRows.map(([label, val]) => {
+          const pct = Math.min(Math.abs(val) / maxAbs * 100, 100);
+          const cls = val >= 0 ? "pos" : "neg";
+          return `<div class="appr-row">
+            <span class="appr-period">${label}</span>
+            <div class="appr-track"><div class="appr-fill ${cls}" style="width:${pct}%"></div></div>
+            <span class="appr-pct ${cls}">${val >= 0 ? "+" : ""}${val.toFixed(1)}%</span>
+          </div>`;
+        }).join("")}
+      </div>`;
+  }
+
+  try {
+    let data = ukSectorCache[sector];
+    if (!data) {
+      const res = await fetch("/api/uk/sector/" + encodeURIComponent(sector));
+      if (res.ok) { data = await res.json(); ukSectorCache[sector] = data; }
+    }
+    if (data?.prices?.dates?.length) {
+      const chartsEl = document.getElementById("panel-charts");
+      const block    = document.createElement("div");
+      block.className = "chart-block open";
+      block.style.setProperty("--accent", "#f59e0b");
+      const body   = document.createElement("div");
+      body.className = "chart-body";
+      body.style.display = "block";
+      const canvas = document.createElement("canvas");
+      canvas.height = 130;
+      body.appendChild(canvas);
+      block.innerHTML = `<div class="chart-toggle">
+        <span class="chart-label">Sale Price History</span>
+        <span class="chart-arrow">▼</span></div>`;
+      block.appendChild(body);
+      chartsEl.appendChild(block);
+      chartInstances["uk_price"] = new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: data.prices.dates,
+          datasets: [{
+            data: data.prices.values, borderColor: "#f59e0b",
+            backgroundColor: "#f59e0b18", borderWidth: 2,
+            pointRadius: 0, pointHoverRadius: 4,
+            pointHoverBackgroundColor: "#f59e0b", fill: true, tension: 0.4,
+          }],
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "#0d1117", borderColor: "#f59e0b", borderWidth: 1,
+              titleColor: "#9ca3af", bodyColor: "#ffffff",
+              titleFont: { size: 10 }, bodyFont: { size: 13, weight: "700" },
+              padding: 10,
+              callbacks: {
+                title: ctx => ctx[0].label ?? "",
+                label: ctx => fmtGBP(ctx.raw),
+              },
+            },
+          },
+          scales: {
+            x: { ticks: { maxTicksLimit: 5, color: "#9ca3af", font: { size: 10 }, maxRotation: 0 }, grid: { display: false }, border: { color: "#e4e7ec" } },
+            y: { ticks: { color: "#9ca3af", font: { size: 10 }, callback: v => fmtGBP(v), maxTicksLimit: 5 }, grid: { color: "#f0f1f3", drawTicks: false }, border: { display: false } },
+          },
+        },
+      });
+    }
+  } catch {}
+}
+
+// ── UK: boot (lazy-loaded on first country switch) ────────────────────────────
+async function bootUK() {
+  if (ukDataLoaded && ukGeojsonData) {
+    renderUKBoundaries(ukGeojsonData);
+    return;
+  }
+
+  setLoading(10);
+  const [heatRes, statsRes] = await Promise.all([
+    fetch("/api/uk/heatmap"),
+    fetch("/api/uk/stats"),
+  ]);
+
+  if (!heatRes.ok) {
+    setMsg("UK data not available — run: python ingest_uk.py", true);
+    setLoading(0); return;
+  }
+
+  const ukData = await heatRes.json();
+  ukData.forEach(d => { ukValueMap[d.s] = d; });
+  ukStatsData = statsRes.ok ? await statsRes.json() : {};
+
+  setLoading(40);
+
+  let ukGeojson = null;
+  const cached = await idbGet(IDB_UK_BOUNDS);
+  if (cached?.ts && (Date.now() - cached.ts) < TTL) ukGeojson = cached.data;
+
+  if (!ukGeojson) {
+    const loadingEl = document.getElementById("loading-msg");
+    loadingEl.style.opacity = "0.8";
+    loadingEl.style.display = "block";
+    const bRes = await fetch("/api/uk/boundaries");
+    if (!bRes.ok) {
+      setMsg("UK boundaries missing — run: python ingest_uk.py --boundaries", true);
+      loadingEl.style.display = "none";
+      setLoading(0); return;
+    }
+    ukGeojson = await bRes.json();
+    idbSet(IDB_UK_BOUNDS, { ts: Date.now(), data: ukGeojson });
+    loadingEl.style.display = "none";
+  }
+
+  setLoading(80);
+  ukGeojsonData = ukGeojson;
+  renderUKBoundaries(ukGeojson);
+  setLoading(100);
+  setTimeout(() => setLoading(0), 500);
+  ukDataLoaded = true;
+}
+
+// ── Country toggle ────────────────────────────────────────────────────────────
+async function switchCountry(country) {
+  if (currentCountry === country) return;
+  currentCountry = country;
+  document.getElementById("pill-us").classList.toggle("active", country === "us");
+  document.getElementById("pill-uk").classList.toggle("active", country === "uk");
+
+  closePanel();
+
+  if (country === "uk") {
+    if (geoLayer) { map.removeLayer(geoLayer); geoLayer = null; }
+    await bootUK();
+    map.setView([52.5, -1.5], 6, { animate: true });
+
+    document.getElementById("zip-input").placeholder = "Search postcode sector…";
+    document.getElementById("pill-rent").style.display = "none";
+    if (currentLayer === "rent") { currentLayer = "home"; document.getElementById("pill-home").classList.add("active"); document.getElementById("pill-rent").classList.remove("active"); }
+    document.querySelector("#legend-select option[value='value']").textContent = "Median Sale Price";
+
+    if (ukStatsData) {
+      document.getElementById("stat-median").closest(".stat-pill").firstChild.textContent = "UK Median";
+      document.getElementById("stat-count").closest(".stat-pill").firstChild.textContent  = "Sectors";
+      document.getElementById("stat-homes").closest(".stat-pill").firstChild.textContent  = "Coverage";
+      document.getElementById("stat-median").textContent = fmtGBP(ukStatsData.median_value);
+      document.getElementById("stat-yoy").textContent    = ukStatsData.median_yoy != null ? (ukStatsData.median_yoy >= 0 ? "+" : "") + ukStatsData.median_yoy + "%" : "—";
+      document.getElementById("stat-count").textContent  = ukStatsData.total_sectors?.toLocaleString() ?? "—";
+      document.getElementById("stat-homes").textContent  = "Eng & Wales";
+    }
+
+    document.getElementById("legend-sources").innerHTML =
+      `Data: <a href="https://landregistry.data.gov.uk/" target="_blank" rel="noopener">HM Land Registry</a>
+       · <a href="https://geolytix.com/" target="_blank" rel="noopener">GeoLytix</a>`;
+    buildLegend(currentMetric);
+
+  } else {
+    if (ukGeoLayer) { map.removeLayer(ukGeoLayer); ukGeoLayer = null; }
+    if (window._geojson) renderBoundaries();
+    map.setView([39, -96], 4, { animate: true });
+
+    document.getElementById("zip-input").placeholder = "Search ZIP code…";
+    document.getElementById("pill-rent").style.display = "";
+    document.querySelector("#legend-select option[value='value']").textContent = "Median Home Value";
+
+    document.getElementById("stat-median").closest(".stat-pill").firstChild.textContent = "US Median";
+    document.getElementById("stat-count").closest(".stat-pill").firstChild.textContent  = "Total Zipcodes";
+    document.getElementById("stat-homes").closest(".stat-pill").firstChild.textContent  = "Total Homes";
+    document.getElementById("stat-median").textContent = fmtVal(usStatsData.median_value);
+    document.getElementById("stat-yoy").textContent    = usStatsData.median_yoy != null ? (usStatsData.median_yoy >= 0 ? "+" : "") + usStatsData.median_yoy + "%" : "—";
+    document.getElementById("stat-count").textContent  = allData.length.toLocaleString();
+    document.getElementById("stat-homes").textContent  = usStatsData.total_homes != null ? Number(usStatsData.total_homes).toLocaleString() : "—";
+
+    document.getElementById("legend-sources").innerHTML =
+      `Data: <a href="https://www.zillow.com/research/data/" target="_blank" rel="noopener">Zillow Research</a>
+       · <a href="https://www.census.gov/geographies/mapping-files.html" target="_blank" rel="noopener">Census TIGER</a>
+       · <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a>`;
+    buildLegend(currentMetric);
+  }
 }
 
 // ── Launch ────────────────────────────────────────────────────────────────────

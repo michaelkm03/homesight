@@ -124,7 +124,10 @@ Each page must:
 - [x] **D4** — Smol Launch — smollaunch.com
   - Submit product page; minimal friction
 
-### Reddit Karma Building (no HomeSight mentions yet)
+### Reddit Karma Building (no HomeSight mentions yet) — MUST complete before L1
+- **Why:** Zero karma in these subs = posts removed or downvoted regardless of content quality. Mods check profile history.
+- **Target:** 10+ genuine answers in R1 + R2 before posting HomeSight anywhere on Reddit.
+- **Timeline:** 1–2 weeks of daily participation starting 2026-06-17.
 - [ ] **R1** — Answer 10+ real questions in r/RealEstate
   - Go to r/RealEstate → sort by "New" → find questions you can answer with real housing data knowledge
   - Track count: 0 / 10
@@ -149,9 +152,9 @@ Each page must:
   - Medium Article 2 scheduled 2026-06-24 8AM EST
   - Medium Article 3 scheduled 2026-07-01 8AM EST
   - Medium Article 4 (Sun Belt) — schedule for 2026-07-08 8AM EST
-  - Dev.to Article 1 published 2026-06-16: https://dev.to/michael_montgomery/i-mapped-home-prices-across-26000-us-zip-codes-heres-what-city-averages-are-hiding-1ej0
+  - Dev.to Article 1 published 2026-06-16: https://dev.to/michael_montgomery/i-mapped-home-prices-across-26000-us-zip-codes-heres-what-city-averages-are-hiding-1ej0 (duplicate removed 2026-06-17)
   - Hashnode — removed (API paid-only since May 2026; content removed by their moderation)
-  - LinkedIn post — ready, post 2026-06-17 8-9AM EST (first comment links to Medium)
+  - LinkedIn post — published 2026-06-17; first comment: homesight.live
   - r/dataisbeautiful, Show HN, Twitter thread — not yet written
 - [x] **P7** — Cross-post automation script
   - `marketing/crosspost.py` — publishes to Dev.to; Hashnode removed (paid API)
@@ -169,11 +172,33 @@ Each page must:
   - No link to HomeSight yet — just be the person with good data
   - Track count: 0 / 5
 
+### BiggerPockets
+- **Why:** Investor audience — highest natural fit for appreciation + rent data. More tolerant of tool mentions than Reddit if you provide genuine value first.
+- [ ] **BP1** — Create account at biggerpockets.com
+- [ ] **BP2** — Answer 5+ forum questions about market trends, cash flow, or appreciation before mentioning HomeSight
+  - Forums: Real Estate News & Investing, Real Estate Market Trends
+  - Track count: 0 / 5
+- [ ] **BP3** — Post HomeSight once BP2 is complete
+
+### Quora
+- **Why:** Answers index on Google and compound over time. One good answer on "best ZIP codes to invest in Dallas" can drive traffic for years.
+- [ ] **Q1** — Answer 3+ questions about ZIP-level appreciation, rent trends, or market comparisons
+  - Search: "best zip codes invest [city]", "home value appreciation [city]", "rent vs buy [city]"
+  - Include HomeSight data in the answer; mention tool naturally at the end
+  - Track count: 0 / 3
+
+### Facebook Groups
+- **Why:** Lowest barrier, fastest to show results. Millions of active members in local real estate groups.
+- [ ] **FB1** — Join 3–5 groups: local real estate, first-time buyers, city-specific housing groups
+- [ ] **FB2** — Answer 3+ questions with HomeSight data before posting directly
+  - Track count: 0 / 3
+- [ ] **FB3** — Post HomeSight once FB2 is complete
+
 ---
 
 ## Launch Week Sequence
 
-- [ ] **L1** — **Day 1:** r/dataisbeautiful + r/MapPorn posts
+- [ ] **L1** — **Day 1:** r/dataisbeautiful + r/MapPorn posts ⚠️ blocked until R1 + R2 complete
   - Take a high-quality screenshot of the national ZIP choropleth map
   - r/dataisbeautiful post: title starts with `[OC]`, credit Zillow Research in body, link HomeSight in comments (not title)
   - r/MapPorn post: same screenshot, different title framing (geography angle)
@@ -213,14 +238,22 @@ Each page must:
 - **Agent use case:** Agent copies URL → pastes to client. Client opens clean data page, no learning curve.
 - **Effort:** ~1 day (FastAPI Jinja2 template)
 
-### F4 — Daily Data Refresh Cron Job
-- **What:** Systemd timer on the Lightsail server — runs `ingest.py --refresh` daily, restarts `homesight.service` on success.
-- **When:** 3 AM EST (08:00 UTC) daily.
-- **Script:** `/usr/local/bin/homesight-ingest` — checks exit code before restarting; logs to `/var/log/homesight-ingest.log`.
+### F4 — Data Refresh Cron Job (US + UK)
+- **What:** Systemd timer runs `cron_runner.py` every 6 hours. Orchestrates US (`ingest.py`) and UK (`ingest_uk.py`) refresh. Each ingest script does a HEAD request to check `Last-Modified` on the source — exits with code `1` (no-op) if unchanged, `0` if new data processed, `2+` on error. Service restarts only if at least one region downloaded new data.
+- **When:** Every 6 hours (`0 */6 * * *`). Both Zillow and Land Registry publish monthly — most 6-hour checks are instant no-ops (~1 second per HEAD request).
+- **DB logging:** Every run (updated, no_change, or error) is logged to `data/homesight.db` → `cron_log` table:
+  - `run_at` — UTC ISO-8601 timestamp
+  - `region` — `us` or `uk`
+  - `status` — `updated` / `no_change` / `error`
+  - `source_last_modified` — Last-Modified timestamp from source
+  - `duration_seconds` — how long the ingest took
+  - `message` — stdout/stderr output (truncated to 2000 chars)
+- **Refresh records written on successful ingest:**
+  - `data/last_refresh.json` — US: `{"timestamp", "source_last_modified", "trigger"}`
+  - `data/uk_last_refresh.json` — UK: same schema
 - **Failure path:** Service keeps running on last-good data. SNS alert fires via existing `homesight-alerts` topic.
-- **Note:** Zillow publishes ZHVI monthly — most daily runs re-download identical data, but guarantees site reflects new data within 24hrs of any Zillow publish.
-- **`lastUpdated` requirement:** On each successful run, the cron script writes `data/last_refresh.json` containing `{"timestamp": "<ISO-8601 UTC>", "trigger": "cron"}`. The server reads this file at startup and exposes the value as `last_refresh` in both `/health` and `/api/stats`. This is distinct from `data_as_of` (Zillow's latest data date) — `last_refresh` answers "when did our system last pull" while `data_as_of` answers "how fresh is the Zillow data itself."
-- **Effort:** ~1 hr (script + systemd timer unit + deploy)
+- **Files:** `cron_runner.py` (orchestrator), `ingest.py` (US), `ingest_uk.py` (UK)
+- **Effort:** ~1.5 hrs (systemd timer unit + deploy)
 
 ### F5 — Rent Heatmap Layer (ZORI) ✓ SHIPPED 2026-06-17
 - **What:** Pill toggle (Home Values / Rent) above the legend dropdown. Rent layer shows latest ZORI monthly rent per ZIP as a choropleth with shared time-window filters (current, 1yr%, 3yr%, 5yr%, 10yr%, 20yr%).
@@ -228,6 +261,24 @@ Each page must:
 - **UI:** Pills swap the first dropdown label ("Median Home Value" ↔ "Current Rent"). Switching pills while a ZIP panel is open instantly swaps the hero between home value and rent. Listing links hidden in rent mode.
 - **Coverage:** 8,316 of 26,276 ZIPs have ZORI data (31.6%) — dense rental markets only; a Zillow data limitation.
 - **Note:** Natural pairing with F1 (Price-to-Rent Ratio) — implement together for maximum investor value.
+
+### F6 — UK Expansion
+- **What:** Extend HomeSight to cover UK residential property — postcode-level price trends, appreciation, and a choropleth map using UK boundaries. Separate country toggle or new subdomain (e.g., homesight.live/uk).
+- **Audience:** UK buyers, investors, expats comparing US and UK markets.
+- **Data sources (all free, no auth required):**
+  - **HM Land Registry Price Paid Data** — every residential sale in England & Wales since Jan 1995; address + postcode + price + date + property type. Updated monthly. Download: gov.uk/government/statistical-data-sets/price-paid-data-downloads. No Zillow-style pre-aggregation — requires custom aggregation per postcode.
+  - **UK House Price Index (HPI)** — joint ONS + Land Registry index; local authority and regional level; free CSV download under Open Government Licence. Less granular than postcode-level PPD but pre-aggregated and clean.
+  - **Homedata API** — 29M UK properties, postcode level, EPC + price history + risk scores; free tier (100 calls/mo). Best for ZIP-detail-equivalent panel. homedata.co.uk
+  - **PropertyData API** — Rightmove/Zoopla listings + Land Registry; near real-time; freemium. propertydata.co.uk/api
+- **Geographic unit:** UK postcode (not ZIP). UK postcodes average ~15 addresses — far more granular than US ZIPs. Full postcode (~1.7M) or postcode sector (~11K) — sector is the practical equivalent of a US ZIP.
+- **Boundaries:** ONS Open Geography Portal — free postcode sector / district shapefiles (GeoJSON).
+- **Rent data gap:** No ZORI equivalent exists for the UK. ONS publishes private rental stats at local authority level only — not postcode-level. Rent layer would be unavailable or limited to LA-level.
+- **Key differences vs. US:**
+  - Land Registry data is raw transactions, not a smoothed index like ZHVI — requires custom rolling median calculation per postcode.
+  - Scotland and Northern Ireland have separate registries (Registers of Scotland, LPS NI) — partial coverage if using Land Registry alone.
+  - Property types: freehold vs. leasehold is a UK-specific dimension worth exposing.
+- **Effort:** ~2–3 weeks (new ingest pipeline, postcode boundary processing, UI country toggle, separate heatmap cache)
+- **Prerequisite:** F2 (SSR pages) recommended first so UK postcode pages can be SEO-indexed.
 
 ### F3 — Social Share Button
 - **What:** Share icon in ZIP panel. Mini share sheet: Twitter/X, LinkedIn, Copy Link.

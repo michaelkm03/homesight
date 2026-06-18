@@ -58,6 +58,13 @@ metros_cache:       Optional[list]          = None  # pre-sorted at startup; /ap
 _cached_tile_count: int                     = 0     # incremented on write; avoids rglob on every /health
 _tile_client:       Optional[httpx.AsyncClient] = None  # lazily created inside event loop on first tile fetch
 
+# ── UK in-memory state ────────────────────────────────────────────────────────
+uk_monthly_df:    Optional[pd.DataFrame] = None
+uk_heatmap_cache: Optional[list]         = None
+uk_stats_cache:   Optional[dict]         = None
+uk_sector_index:  dict                   = {}  # sector -> (start, end) in uk_monthly_df
+uk_sector_cache:  dict                   = {}  # sector -> full API response dict
+
 # ── Serialisation helper ──────────────────────────────────────────────────────
 def _clean(v):
     """Convert pandas/numpy scalars to JSON-safe Python types."""
@@ -240,7 +247,47 @@ def _build_heatmap() -> list:
     return [_clean_row(row) for row in df_out.to_dict(orient="records")]
 
 
+def _load_uk_data():
+    global uk_monthly_df, uk_heatmap_cache, uk_stats_cache, uk_sector_index
+
+    heatmap_path = DATA_DIR / "uk_heatmap.parquet"
+    monthly_path = DATA_DIR / "uk_monthly.parquet"
+
+    if not heatmap_path.exists():
+        print("  MISSING uk_heatmap.parquet — run python ingest_uk.py")
+        return
+
+    if monthly_path.exists():
+        uk_monthly_df = (pd.read_parquet(monthly_path)
+                           .sort_values(["sector", "month"])
+                           .reset_index(drop=True))
+        sectors_arr = uk_monthly_df["sector"].values
+        for s in uk_monthly_df["sector"].unique():
+            uk_sector_index[s] = (
+                int(np.searchsorted(sectors_arr, s, side="left")),
+                int(np.searchsorted(sectors_arr, s, side="right")),
+            )
+        print(f"  uk_monthly: {len(uk_monthly_df):,} rows, {len(uk_sector_index):,} sectors")
+
+    hm = pd.read_parquet(heatmap_path)
+    hm = hm.rename(columns={"sector": "s"})
+    uk_heatmap_cache = [_clean_row(row) for row in hm.to_dict(orient="records")]
+
+    vals = sorted(r["v"] for r in uk_heatmap_cache if r.get("v") is not None)
+    yoys = [r["y"] for r in uk_heatmap_cache if r.get("y") is not None]
+    uk_stats_cache = {
+        "total_sectors": len(uk_heatmap_cache),
+        "median_value":  round(vals[len(vals) // 2]) if vals else 0,
+        "median_yoy":    round(sum(yoys) / len(yoys), 1) if yoys else 0,
+        "currency":      "GBP",
+        "source":        "HM Land Registry Price Paid Data",
+        "coverage":      "England and Wales",
+    }
+    print(f"  UK heatmap: {len(uk_heatmap_cache):,} sectors ready")
+
+
 load_all()
+_load_uk_data()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def _validate_zip(zip_code: str) -> str:
@@ -404,6 +451,71 @@ async def proxy_tile(layer: str, z: int, x: int, y: int):
                     headers={"Cache-Control": CACHE_24H})
 
 
+# ── UK Routes ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/uk/heatmap")
+def get_uk_heatmap():
+    if not uk_heatmap_cache:
+        raise HTTPException(503, "No UK data — run: python ingest_uk.py")
+    return JSONResponse(content=uk_heatmap_cache, headers={"Cache-Control": CACHE_1H})
+
+
+@app.get("/api/uk/stats")
+def get_uk_stats():
+    if not uk_stats_cache:
+        raise HTTPException(503, "No UK data — run: python ingest_uk.py")
+    return JSONResponse(content=uk_stats_cache, headers={"Cache-Control": CACHE_1H})
+
+
+@app.get("/api/uk/boundaries")
+def get_uk_boundaries():
+    p = DATA_DIR / "uk_boundaries.geojson.gz"
+    if not p.exists():
+        raise HTTPException(503, "UK boundaries missing — run: python ingest_uk.py --boundaries")
+    return FileResponse(
+        p, media_type="application/json",
+        headers={"Content-Encoding": "gzip", "Cache-Control": CACHE_24H},
+    )
+
+
+@app.get("/api/uk/sector/{sector_code:path}")
+def get_uk_sector(sector_code: str):
+    sector = sector_code.strip().upper()
+    if len(sector) < 4 or len(sector) > 7:
+        raise HTTPException(400, f"Invalid postcode sector: {sector!r}")
+
+    if sector in uk_sector_cache:
+        return JSONResponse(content=uk_sector_cache[sector],
+                            headers={"Cache-Control": CACHE_1H})
+
+    if uk_monthly_df is None or sector not in uk_sector_index:
+        raise HTTPException(404, f"No data for sector {sector!r}")
+
+    start, end = uk_sector_index[sector]
+    sub = uk_monthly_df.iloc[start:end]
+    if sub.empty:
+        raise HTTPException(404, f"No data for sector {sector!r}")
+
+    heatmap_row = next((r for r in (uk_heatmap_cache or []) if r.get("s") == sector), None)
+
+    result = {
+        "sector":   sector,
+        "currency": "GBP",
+        "prices": {
+            "dates":  sub["month"].dt.strftime("%Y-%m").tolist(),
+            "values": [_clean(v) for v in sub["value"]],
+        },
+        "appreciation": {
+            k: heatmap_row.get(k)
+            for k in ("y", "y3", "y5", "y10", "y20")
+        } if heatmap_row else {},
+        "current_value": heatmap_row.get("v") if heatmap_row else None,
+    }
+
+    uk_sector_cache[sector] = result
+    return JSONResponse(content=result, headers={"Cache-Control": CACHE_1H})
+
+
 @app.get("/health")
 def health():
     failing = []
@@ -427,6 +539,13 @@ def health():
         except Exception:
             pass
 
+    uk_data_as_of = None
+    if uk_monthly_df is not None:
+        try:
+            uk_data_as_of = uk_monthly_df["month"].max().strftime("%Y-%m-%d")
+        except Exception:
+            pass
+
     body = {
         "status":            "ok" if not failing else "degraded",
         "version":           _VERSION,
@@ -439,6 +558,11 @@ def health():
         "configs_loaded":    list(dfs.keys()),
         "cached_tiles":      _cached_tile_count,
         "failing_checks":    failing,
+        "uk": {
+            "sectors":     len(uk_heatmap_cache) if uk_heatmap_cache else 0,
+            "data_as_of":  uk_data_as_of,
+            "boundaries":  (DATA_DIR / "uk_boundaries.geojson.gz").exists(),
+        },
     }
     status_code = 200 if not failing else 503
     return JSONResponse(content=body, status_code=status_code)

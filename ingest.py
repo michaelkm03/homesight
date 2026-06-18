@@ -1,16 +1,20 @@
 """
 ingest.py — Download Zillow data (ZIP, county, metro levels) + ZIP coordinates + boundaries.
 Run once; re-run with --refresh to update.
+Cron-safe: checks Last-Modified header on primary source before downloading anything.
 """
 import io
+import json
 import argparse
 import zipfile
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 
-CACHE_DIR = Path("data")
+CACHE_DIR    = Path("data")
+REFRESH_FILE = CACHE_DIR / "last_refresh.json"
 
 META_COLS = ["RegionID","SizeRank","RegionName","RegionType","StateName","State",
              "City","Metro","CountyName"]
@@ -30,11 +34,54 @@ EXTRA_SOURCES = {
     "metro":  "https://files.zillowstatic.com/research/public_csvs/zhvi/Metro_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv",
 }
 
+def get_remote_last_modified(url: str) -> datetime | None:
+    try:
+        req = urllib.request.Request(url, method="HEAD")
+        with urllib.request.urlopen(req, timeout=10) as r:
+            lm = r.headers.get("Last-Modified")
+            if lm:
+                return datetime.strptime(lm, "%a, %d %b %Y %H:%M:%S %Z").replace(tzinfo=timezone.utc)
+    except Exception as e:
+        print(f"  WARNING: could not check remote Last-Modified: {e}")
+    return None
+
+
+def get_local_last_refresh() -> datetime | None:
+    if REFRESH_FILE.exists():
+        data = json.loads(REFRESH_FILE.read_text())
+        ts   = data.get("source_last_modified")
+        if ts:
+            return datetime.fromisoformat(ts)
+    return None
+
+
+def write_refresh_record(source_last_modified: datetime | None) -> None:
+    CACHE_DIR.mkdir(exist_ok=True)
+    REFRESH_FILE.write_text(json.dumps({
+        "timestamp":            datetime.now(timezone.utc).isoformat(),
+        "source_last_modified": source_last_modified.isoformat() if source_last_modified else None,
+        "trigger":              "cron",
+    }, indent=2))
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--refresh", action="store_true")
 args = parser.parse_args()
 
 CACHE_DIR.mkdir(exist_ok=True)
+
+# ── Freshness check (cron-safe: exits early if source unchanged) ───────────────
+remote_lm = get_remote_last_modified(ZIP_SOURCES["home_values"])
+local_lm  = get_local_last_refresh()
+
+if remote_lm:
+    print(f"  Remote Last-Modified: {remote_lm.strftime('%Y-%m-%d %H:%M UTC')}")
+if local_lm:
+    print(f"  Last ingest:          {local_lm.strftime('%Y-%m-%d %H:%M UTC')}")
+
+if not args.refresh and remote_lm and local_lm and remote_lm <= local_lm:
+    print("  Source unchanged since last ingest — nothing to do.")
+    raise SystemExit(1)  # 1 = no update; 0 = new data processed; 2+ = error
 
 def melt_zillow(df, id_extras=None):
     """Melt a Zillow wide CSV → long format. id_extras = extra columns to keep."""
@@ -172,4 +219,6 @@ else:
     except Exception as e:
         print(f"  FAILED boundaries: {e}")
 
+write_refresh_record(remote_lm)
+print(f"  last_refresh.json            saved")
 print("\nDone. Run: uvicorn server:app --reload")
