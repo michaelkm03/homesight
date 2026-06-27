@@ -665,6 +665,11 @@
       .mobile-metric-pill.active { background: var(--green); color: #0a2e1c; border-color: var(--green); }
       .mobile-metric-pill:active:not(.active) { background: var(--border); }
 
+      /* Highlight the active YoY period row */
+      .appr-row.selected .appr-period { color: var(--green); font-weight: 900; }
+      .appr-row.selected .appr-pct    { font-weight: 900; }
+      .appr-row.selected .appr-track  { box-shadow: 0 0 0 1px var(--green); border-radius: 4px; }
+
       /* Appreciation section — collapsible chart-block on mobile */
       #appr-section { padding: 0; border-top: none; }
       #appr-section .chart-body { padding: 12px 16px 16px; }
@@ -1041,6 +1046,7 @@ function fmtRent(v) { return v != null ? "$" + Math.round(v).toLocaleString() + 
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let map, geoLayer, zipToLayer = {}, valueMap = {}, allData = [], currentMetric = "yoy", currentLayer = "home";
+let currentPanelData = null;
 let activeLayer = null, chartInstances = {};
 let currentCountry = "us";
 let ukGeoLayer = null, ukToLayer = {}, ukValueMap = {}, ukActiveLayer = null, ukDataLoaded = false;
@@ -1220,6 +1226,9 @@ function setLayer(layer) {
   if (layer === "rent" && currentMetric !== "value") {
     document.getElementById("legend-select").value = "value";
     currentMetric = "value";
+    document.querySelectorAll(".mobile-metric-pill").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.metric === "value");
+    });
   }
   gtag("event", "metric_change", { metric: currentMetric + "_" + layer });
   buildLegend(currentMetric);
@@ -1259,6 +1268,10 @@ function changeMetric() {
 function setMetricMobile(metric) {
   document.getElementById("legend-select").value = metric;
   changeMetric();
+  if (currentPanelData) {
+    renderHero(currentPanelData);
+    renderStats(currentPanelData.configs, currentPanelData.appreciation);
+  }
 }
 
 // ── Jump to ZIP ───────────────────────────────────────────────────────────────
@@ -1510,6 +1523,7 @@ async function openPanel(zip) {
       data.county || ""
     ].filter(Boolean).join(" · ");
 
+    currentPanelData = data;
     renderHero(data);
     renderBadge(data);
     renderStats(data.configs, data.appreciation);
@@ -1544,10 +1558,30 @@ function closePanel() {
 }
 
 // ── Hero stat ────────────────────────────────────────────────────────────────
+const METRIC_APPR_KEY   = { yoy: "appreciation_1y", yoy3: "appreciation_3y", yoy5: "appreciation_5y", yoy10: "appreciation_10y", yoy20: "appreciation_20y" };
+const METRIC_APPR_LABEL = { yoy: "1-Year Appreciation", yoy3: "3-Year Appreciation", yoy5: "5-Year Appreciation", yoy10: "10-Year Appreciation", yoy20: "20-Year Appreciation" };
+
 function renderHero(data) {
   const isRent = currentLayer === "rent";
-  const cfg    = isRent ? data.configs?.rentals : data.configs?.home_values;
   const hero   = document.getElementById("panel-hero");
+  const yoyEl  = document.getElementById("panel-hero-yoy");
+
+  // Mobile + YoY metric: show appreciation % as hero
+  if (window.innerWidth <= 640 && !isRent && currentMetric !== "value" && data.appreciation) {
+    const appr = data.appreciation[METRIC_APPR_KEY[currentMetric]];
+    if (appr != null) {
+      document.getElementById("panel-hero-label").textContent = METRIC_APPR_LABEL[currentMetric];
+      document.getElementById("panel-hero-value").textContent = (appr >= 0 ? "+" : "") + appr.toFixed(1) + "%";
+      document.getElementById("panel-hero-value").style.color = appr >= 0 ? "var(--green)" : "#f87171";
+      yoyEl.textContent = ""; yoyEl.className = "";
+      hero.style.display = "block";
+      document.getElementById("listing-links").style.display = "none";
+      return;
+    }
+  }
+
+  document.getElementById("panel-hero-value").style.color = "";
+  const cfg = isRent ? data.configs?.rentals : data.configs?.home_values;
   if (!cfg?.values) { hero.style.display = "none"; return; }
   const vals = cfg.values.filter(v => v != null);
   if (!vals.length) { hero.style.display = "none"; return; }
@@ -1555,7 +1589,6 @@ function renderHero(data) {
   const yoy  = calcYoy(cfg.values);
   document.getElementById("panel-hero-label").textContent = isRent ? "Median Monthly Rent" : "Median Home Value";
   document.getElementById("panel-hero-value").textContent = isRent ? fmtRent(last) : fmtVal(last);
-  const yoyEl = document.getElementById("panel-hero-yoy");
   if (yoy != null) {
     yoyEl.textContent = (yoy >= 0 ? "▲ +" : "▼ ") + yoy.toFixed(1) + "% year over year";
     yoyEl.className   = yoy >= 0 ? "green" : "red";
@@ -1634,10 +1667,12 @@ function renderStats(configs, appreciation) {
 
     if (rows.length) {
       const maxAbs = Math.max(...rows.map(([,v]) => Math.abs(v)), 1);
+      const activePeriod = { yoy: "1yr", yoy3: "3yr", yoy5: "5yr", yoy10: "10yr", yoy20: "20yr" }[currentMetric];
       const barsHtml = rows.map(([label, val]) => {
         const pct = Math.min(Math.abs(val) / maxAbs * 100, 100);
         const cls = val >= 0 ? "pos" : "neg";
-        return `<div class="appr-row">
+        const sel = (window.innerWidth <= 640 && label === activePeriod) ? " selected" : "";
+        return `<div class="appr-row${sel}">
           <span class="appr-period">${label}</span>
           <div class="appr-track"><div class="appr-fill ${cls}" style="width:${pct}%"></div></div>
           <span class="appr-pct ${cls}">${val >= 0 ? "+" : ""}${val.toFixed(1)}%</span>
