@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="description" content="Explore home values, rent trends, and appreciation across 26,000+ U.S. ZIP codes. Free, no signup required." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://homesight.live/" />
@@ -566,6 +566,107 @@
     .leaflet-zoom-anim .leaflet-zoom-animated { transition-duration: 0.15s !important; }
     /* Tile fade-in: 100ms instead of 200ms — new tiles appear faster after zoom settles */
     .leaflet-fade-anim .leaflet-tile-loaded   { transition: opacity 0.1s linear !important; }
+
+    /* ── Mobile (≤ 640px) ─────────────────────────────────────────────────────── */
+    #mobile-drag-handle { display: none; }
+    #mobile-layer-toggle { display: none; }
+
+    @media (max-width: 640px) {
+      :root { --panel-h: 82vh; --peek-h: 260px; }
+
+      /* Header — compact single row */
+      #header { padding: 0 0.75rem; gap: 0.5rem; }
+      #header h1 { font-size: 0.9rem; letter-spacing: 0.12em; }
+      #data-btn { display: none; }
+      #search-wrap { margin-left: 0; flex: 1; min-width: 0; }
+      #zip-input { width: 100%; font-size: 0.75rem; padding: 6px 28px 6px 10px; }
+      .country-pill { padding: 5px 12px; min-width: 52px; font-size: 0.68rem; }
+
+      /* Drag handle pill */
+      #mobile-drag-handle {
+        display: flex; align-items: center; justify-content: center;
+        width: 100%; height: 20px; cursor: pointer; flex-shrink: 0;
+      }
+      #mobile-drag-handle::before {
+        content: ""; display: block;
+        width: 40px; height: 4px;
+        background: rgba(0,0,0,0.15); border-radius: 2px;
+      }
+
+      /* Panel → bottom sheet, hidden off-screen */
+      #panel {
+        top: auto; left: 0; right: 0; width: 100%;
+        height: var(--panel-h);
+        bottom: calc(-1 * var(--panel-h));
+        border-left: none; border-top: none;
+        border-radius: 16px 16px 0 0;
+        transition: bottom 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+        box-shadow: 0 -4px 32px rgba(0,0,0,0.18);
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+
+      /* Peek state — show header + hero only (top 200px) */
+      #panel.peek { bottom: calc(var(--peek-h) - var(--panel-h)); }
+      #panel.peek #invest-badge { display: none; }
+      #panel.peek #panel-header { padding-bottom: 8px; cursor: pointer; }
+
+      /* Expanded state */
+      #panel.open { bottom: 0; }
+
+      #panel-zip { font-size: 1.3rem; }
+      #panel-hero-value { font-size: 1.8rem; }
+
+      /* Map — transitions on bottom (not right) on mobile */
+      #map { transition: right 0.32s cubic-bezier(0.32, 0.72, 0, 1),
+                         bottom 0.32s cubic-bezier(0.32, 0.72, 0, 1); }
+      #map.panel-peek { right: 0; bottom: var(--peek-h); }
+      #map.panel-open { right: 0; bottom: var(--panel-h); }
+
+      /* Hide legend + feedback when panel is active */
+      #map.panel-peek ~ #legend,
+      #map.panel-open ~ #legend,
+      #map.panel-peek ~ #feedback-btn,
+      #map.panel-open ~ #feedback-btn { display: none; }
+      #map.panel-open ~ #map-msg,
+      #map.panel-peek ~ #map-msg { right: 16px; }
+
+      /* Legend and feedback base positions with safe area */
+      #legend { bottom: calc(12px + env(safe-area-inset-bottom)); left: 8px; padding: 10px 12px; }
+      #feedback-btn { bottom: calc(16px + env(safe-area-inset-bottom)); right: 12px; }
+
+      /* Mobile layer toggle */
+      #mobile-layer-toggle {
+        display: flex; gap: 6px; flex-shrink: 0;
+        padding: 10px 16px; border-bottom: 1px solid var(--border);
+      }
+      .mobile-layer-pill {
+        flex: 1; padding: 8px; font-size: 0.75rem; font-weight: 700;
+        border-radius: 5px; cursor: pointer; transition: all 0.15s;
+        border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+        font-family: inherit; letter-spacing: 0.04em;
+      }
+      .mobile-layer-pill.active { background: var(--green); color: #0a2e1c; border-color: var(--green); }
+      .mobile-layer-pill:active:not(.active) { background: var(--border); }
+
+      /* Appreciation section — collapsible chart-block on mobile */
+      #appr-section { padding: 0; border-top: none; }
+      #appr-section .chart-body { padding: 12px 16px 16px; }
+
+      /* Landing modal */
+      #landing-modal { padding: 28px 20px 22px; }
+
+      /* iOS scroll fix — min-height:0 prevents flex child from blocking overflow */
+      #panel-charts {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: contain;
+        min-height: 0;
+      }
+    }
+
+    /* Suppress hover tooltip on touch devices */
+    @media (hover: none) {
+      #tooltip { display: none !important; }
+    }
   </style>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-47JL6EME24"></script>
   <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-47JL6EME24');</script>
@@ -661,7 +762,8 @@
 
 <div id="panel">
   <div id="panel-header">
-    <button id="panel-close" onclick="closePanel()">✕</button>
+    <div id="mobile-drag-handle"></div>
+    <button id="panel-close" onclick="handlePanelClose()">✕</button>
     <div id="panel-zip"></div>
     <div id="panel-loc"></div>
     <div id="invest-badge"></div>
@@ -674,6 +776,10 @@
       <a id="link-zillow" class="listing-link listing-link-zillow" target="_blank" rel="noopener noreferrer">🏠 Zillow</a>
       <a id="link-redfin" class="listing-link listing-link-redfin" target="_blank" rel="noopener noreferrer">🔑 Redfin</a>
     </div>
+  </div>
+  <div id="mobile-layer-toggle">
+    <button class="mobile-layer-pill active" id="m-pill-home" onclick="setLayer('home')">Home Values</button>
+    <button class="mobile-layer-pill" id="m-pill-rent" onclick="setLayer('rent')">Rent</button>
   </div>
   <div id="panel-stats"></div>
   <div id="panel-charts"></div>
@@ -1086,6 +1192,8 @@ function setLayer(layer) {
   currentLayer = layer;
   document.getElementById("pill-home").classList.toggle("active", layer === "home");
   document.getElementById("pill-rent").classList.toggle("active", layer === "rent");
+  document.getElementById("m-pill-home").classList.toggle("active", layer === "home");
+  document.getElementById("m-pill-rent").classList.toggle("active", layer === "rent");
   document.querySelector("#legend-select option[value='value']").textContent =
     layer === "rent" ? "Current Rent" : "Median Home Value";
   if (layer === "rent" && currentMetric !== "value") {
@@ -1099,7 +1207,16 @@ function setLayer(layer) {
       activeLayer && activeLayer.feature === feature));
   }
   const openZip = activeLayer?.feature?.properties?.zip;
-  if (openZip && zipDataCache[openZip]) renderHero(zipDataCache[openZip]);
+  if (openZip && zipDataCache[openZip]) {
+    const data = zipDataCache[openZip];
+    renderHero(data);
+    renderStats(data.configs, data.appreciation);
+    Object.values(chartInstances).forEach(c => c.destroy());
+    chartInstances = {};
+    document.getElementById("panel-charts").innerHTML = "";
+    const autoOpen = layer === "rent" ? "Median Monthly Rent" : "Median Home Value";
+    renderCharts(data.configs, autoOpen);
+  }
 }
 
 // ── Change metric ─────────────────────────────────────────────────────────────
@@ -1340,9 +1457,15 @@ async function openPanel(zip) {
   chartInstances = {};
 
   document.getElementById("panel-hero").style.display = "none";
-  document.getElementById("panel").classList.add("open");
-  document.getElementById("map").classList.add("panel-open");
   document.getElementById("map-msg").style.display = "none";
+  if (window.innerWidth <= 640) {
+    document.getElementById("panel").classList.add("peek");
+    document.getElementById("map").classList.add("panel-peek");
+  } else {
+    document.getElementById("panel").classList.add("open");
+    document.getElementById("map").classList.add("panel-open");
+  }
+  setTimeout(() => map.invalidateSize(), 340);
 
   try {
     let data = zipDataCache[zip];
@@ -1372,8 +1495,11 @@ function closePanel() {
   const prevUK = ukActiveLayer;
   activeLayer = null;
   ukActiveLayer = null;
-  document.getElementById("panel").classList.remove("open");
-  document.getElementById("map").classList.remove("panel-open");
+  const panelEl = document.getElementById("panel");
+  const mapEl   = document.getElementById("map");
+  panelEl.classList.remove("open", "peek");
+  mapEl.classList.remove("panel-open", "panel-peek");
+  setTimeout(() => map.invalidateSize(), 340);
   if (prevUS) {
     prevUS.setStyle(featureStyle(prevUS.feature, false));
     requestAnimationFrame(() => {
@@ -1479,20 +1605,31 @@ function renderStats(configs, appreciation) {
 
     if (rows.length) {
       const maxAbs = Math.max(...rows.map(([,v]) => Math.abs(v)), 1);
-      el.innerHTML += `
-        <div id="appr-section">
-          <span class="p-stat-label">Appreciation History</span>
-          ${rows.map(([label, val]) => {
-            const pct  = Math.min(Math.abs(val) / maxAbs * 100, 100);
-            const cls  = val >= 0 ? "pos" : "neg";
-            return `
-              <div class="appr-row">
-                <span class="appr-period">${label}</span>
-                <div class="appr-track"><div class="appr-fill ${cls}" style="width:${pct}%"></div></div>
-                <span class="appr-pct ${cls}">${val >= 0 ? "+" : ""}${val.toFixed(1)}%</span>
-              </div>`;
-          }).join("")}
+      const barsHtml = rows.map(([label, val]) => {
+        const pct = Math.min(Math.abs(val) / maxAbs * 100, 100);
+        const cls = val >= 0 ? "pos" : "neg";
+        return `<div class="appr-row">
+          <span class="appr-period">${label}</span>
+          <div class="appr-track"><div class="appr-fill ${cls}" style="width:${pct}%"></div></div>
+          <span class="appr-pct ${cls}">${val >= 0 ? "+" : ""}${val.toFixed(1)}%</span>
         </div>`;
+      }).join("");
+      if (window.innerWidth <= 640) {
+        el.innerHTML += `
+          <div id="appr-section" class="chart-block">
+            <div class="chart-toggle" onclick="this.parentElement.classList.toggle('open')">
+              <span class="chart-label">Appreciation History</span>
+              <span class="chart-arrow">▼</span>
+            </div>
+            <div class="chart-body">${barsHtml}</div>
+          </div>`;
+      } else {
+        el.innerHTML += `
+          <div id="appr-section">
+            <span class="p-stat-label">Appreciation History</span>
+            ${barsHtml}
+          </div>`;
+      }
     }
   }
 }
@@ -1505,7 +1642,7 @@ const CHART_DEFS = [
   { label: "New Listings",  cfg: "for_sale_listings",  color: "#14b8a6", fmt: v => v!=null?Math.round(v).toLocaleString():"—", fmtShort: v => Math.round(v) },
 ];
 
-function renderCharts(configs) {
+function renderCharts(configs, autoOpenLabel = null) {
   const el = document.getElementById("panel-charts");
   el.innerHTML = "";
   let first = true;
@@ -1598,7 +1735,11 @@ function renderCharts(configs) {
     block.appendChild(body);
     el.appendChild(block);
 
-    if (first) { block.classList.add("open"); initChart(); first = false; }
+    if (first) {
+      if (window.innerWidth > 640) { block.classList.add("open"); initChart(); }
+      first = false;
+    }
+    if (autoOpenLabel && label === autoOpenLabel) { block.classList.add("open"); initChart(); }
   });
 }
 
@@ -1873,9 +2014,15 @@ async function openUKPanel(sector, heatmapData) {
   chartInstances = {};
   document.getElementById("panel-hero").style.display  = "none";
   document.getElementById("listing-links").style.display = "none";
-  document.getElementById("panel").classList.add("open");
-  document.getElementById("map").classList.add("panel-open");
   document.getElementById("map-msg").style.display = "none";
+  if (window.innerWidth <= 640) {
+    document.getElementById("panel").classList.add("peek");
+    document.getElementById("map").classList.add("panel-peek");
+  } else {
+    document.getElementById("panel").classList.add("open");
+    document.getElementById("map").classList.add("panel-open");
+  }
+  setTimeout(() => map.invalidateSize(), 340);
 
   // Investment badge
   const badge = document.getElementById("invest-badge");
@@ -1905,19 +2052,27 @@ async function openUKPanel(sector, heatmapData) {
   ].filter(([, v]) => v != null);
   if (apprRows.length) {
     const maxAbs = Math.max(...apprRows.map(([, v]) => Math.abs(v)), 1);
-    document.getElementById("panel-stats").innerHTML = `
-      <div id="appr-section" style="grid-column:1/-1">
-        <span class="p-stat-label">Appreciation History</span>
-        ${apprRows.map(([label, val]) => {
-          const pct = Math.min(Math.abs(val) / maxAbs * 100, 100);
-          const cls = val >= 0 ? "pos" : "neg";
-          return `<div class="appr-row">
-            <span class="appr-period">${label}</span>
-            <div class="appr-track"><div class="appr-fill ${cls}" style="width:${pct}%"></div></div>
-            <span class="appr-pct ${cls}">${val >= 0 ? "+" : ""}${val.toFixed(1)}%</span>
-          </div>`;
-        }).join("")}
+    const ukBarsHtml = apprRows.map(([label, val]) => {
+      const pct = Math.min(Math.abs(val) / maxAbs * 100, 100);
+      const cls = val >= 0 ? "pos" : "neg";
+      return `<div class="appr-row">
+        <span class="appr-period">${label}</span>
+        <div class="appr-track"><div class="appr-fill ${cls}" style="width:${pct}%"></div></div>
+        <span class="appr-pct ${cls}">${val >= 0 ? "+" : ""}${val.toFixed(1)}%</span>
       </div>`;
+    }).join("");
+    document.getElementById("panel-stats").innerHTML = window.innerWidth <= 640
+      ? `<div id="appr-section" class="chart-block">
+          <div class="chart-toggle" onclick="this.parentElement.classList.toggle('open')">
+            <span class="chart-label">Appreciation History</span>
+            <span class="chart-arrow">▼</span>
+          </div>
+          <div class="chart-body">${ukBarsHtml}</div>
+        </div>`
+      : `<div id="appr-section" style="grid-column:1/-1">
+          <span class="p-stat-label">Appreciation History</span>
+          ${ukBarsHtml}
+        </div>`;
   }
 
   try {
@@ -2046,6 +2201,7 @@ async function switchCountry(country) {
 
     document.getElementById("zip-input").placeholder = "Search postcode sector…";
     document.getElementById("pill-rent").style.display = "none";
+    document.getElementById("m-pill-rent").style.display = "none";
     if (currentLayer === "rent") { currentLayer = "home"; document.getElementById("pill-home").classList.add("active"); document.getElementById("pill-rent").classList.remove("active"); }
     document.querySelector("#legend-select option[value='value']").textContent = "Median Sale Price";
 
@@ -2071,6 +2227,7 @@ async function switchCountry(country) {
 
     document.getElementById("zip-input").placeholder = "Search ZIP code…";
     document.getElementById("pill-rent").style.display = "";
+    document.getElementById("m-pill-rent").style.display = "";
     document.querySelector("#legend-select option[value='value']").textContent = "Median Home Value";
 
     document.getElementById("stat-median").closest(".stat-pill").firstChild.textContent = "US Median";
@@ -2088,6 +2245,67 @@ async function switchCountry(country) {
     buildLegend(currentMetric);
   }
 }
+
+// ── Mobile panel state ────────────────────────────────────────────────────────
+function handlePanelClose() {
+  const panel = document.getElementById("panel");
+  if (window.innerWidth <= 640 && panel.classList.contains("open")) {
+    panel.classList.replace("open", "peek");
+    document.getElementById("map").classList.replace("panel-open", "panel-peek");
+    setTimeout(() => map.invalidateSize(), 340);
+  } else {
+    closePanel();
+  }
+}
+
+function expandMobilePanel() {
+  const panel = document.getElementById("panel");
+  if (!panel.classList.contains("peek")) return;
+  panel.classList.replace("peek", "open");
+  document.getElementById("map").classList.replace("panel-peek", "panel-open");
+  setTimeout(() => map.invalidateSize(), 340);
+}
+
+// Swipe up on drag handle → expand; swipe down → collapse/close
+(function() {
+  let startY = 0;
+  const handle = document.getElementById("mobile-drag-handle");
+  handle.addEventListener("touchstart", e => { startY = e.touches[0].clientY; }, { passive: true });
+  handle.addEventListener("touchend", e => {
+    if (window.innerWidth > 640) return;
+    const dy = e.changedTouches[0].clientY - startY;
+    const panel = document.getElementById("panel");
+    if (dy < -20 && panel.classList.contains("peek")) {
+      expandMobilePanel();
+    } else if (dy > 20 && panel.classList.contains("peek")) {
+      closePanel();
+    }
+  }, { passive: true });
+
+  // Tap drag handle → expand from peek
+  handle.addEventListener("click", () => {
+    if (window.innerWidth <= 640) expandMobilePanel();
+  });
+
+  // Swipe down anywhere on panel header → collapse from open
+  let headerStartY = 0;
+  const header = document.getElementById("panel-header");
+  header.addEventListener("touchstart", e => { headerStartY = e.touches[0].clientY; }, { passive: true });
+  header.addEventListener("touchend", e => {
+    if (window.innerWidth > 640) return;
+    const dy = e.changedTouches[0].clientY - headerStartY;
+    if (dy > 40 && document.getElementById("panel").classList.contains("open")) {
+      handlePanelClose();
+    }
+  }, { passive: true });
+
+  // Tap panel header in peek state → expand
+  header.addEventListener("click", e => {
+    if (window.innerWidth <= 640 && !e.target.closest("#panel-close")) {
+      expandMobilePanel();
+    }
+  });
+})();
 
 // ── Launch ────────────────────────────────────────────────────────────────────
 boot().then(() => initRankings());
