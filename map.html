@@ -570,6 +570,7 @@
     /* ── Mobile (≤ 640px) ─────────────────────────────────────────────────────── */
     #mobile-drag-handle { display: none; }
     #mobile-layer-toggle { display: none; }
+    #mobile-metric-toggle { display: none; }
 
     @media (max-width: 640px) {
       :root { --panel-h: 82vh; --peek-h: 260px; }
@@ -647,6 +648,22 @@
       }
       .mobile-layer-pill.active { background: var(--green); color: #0a2e1c; border-color: var(--green); }
       .mobile-layer-pill:active:not(.active) { background: var(--border); }
+
+      /* Mobile metric (YoY period) toggle */
+      #mobile-metric-toggle {
+        display: flex; gap: 5px; flex-shrink: 0; overflow-x: auto;
+        padding: 8px 16px; border-bottom: 1px solid var(--border);
+        -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      }
+      #mobile-metric-toggle::-webkit-scrollbar { display: none; }
+      .mobile-metric-pill {
+        flex-shrink: 0; padding: 6px 11px; font-size: 0.7rem; font-weight: 700;
+        border-radius: 5px; cursor: pointer; transition: all 0.15s;
+        border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+        font-family: inherit; white-space: nowrap;
+      }
+      .mobile-metric-pill.active { background: var(--green); color: #0a2e1c; border-color: var(--green); }
+      .mobile-metric-pill:active:not(.active) { background: var(--border); }
 
       /* Appreciation section — collapsible chart-block on mobile */
       #appr-section { padding: 0; border-top: none; }
@@ -776,6 +793,14 @@
   <div id="mobile-layer-toggle">
     <button class="mobile-layer-pill active" id="m-pill-home" onclick="setLayer('home')">Home Values</button>
     <button class="mobile-layer-pill" id="m-pill-rent" onclick="setLayer('rent')">Rent</button>
+  </div>
+  <div id="mobile-metric-toggle">
+    <button class="mobile-metric-pill active" data-metric="yoy"   onclick="setMetricMobile('yoy')">1yr</button>
+    <button class="mobile-metric-pill"        data-metric="yoy3"  onclick="setMetricMobile('yoy3')">3yr</button>
+    <button class="mobile-metric-pill"        data-metric="yoy5"  onclick="setMetricMobile('yoy5')">5yr</button>
+    <button class="mobile-metric-pill"        data-metric="yoy10" onclick="setMetricMobile('yoy10')">10yr</button>
+    <button class="mobile-metric-pill"        data-metric="yoy20" onclick="setMetricMobile('yoy20')">20yr</button>
+    <button class="mobile-metric-pill"        data-metric="value" onclick="setMetricMobile('value')">Value</button>
   </div>
   <div id="panel-stats"></div>
   <div id="panel-charts"></div>
@@ -1220,12 +1245,20 @@ function changeMetric() {
   currentMetric = document.getElementById("legend-select").value;
   gtag("event", "metric_change", { metric: currentMetric });
   buildLegend(currentMetric);
+  document.querySelectorAll(".mobile-metric-pill").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.metric === currentMetric);
+  });
   if (currentCountry === "uk") {
     if (ukGeoLayer) ukGeoLayer.setStyle(f => featureStyleUK(f, ukActiveLayer?.feature === f));
   } else {
     if (geoLayer) geoLayer.setStyle(feature => featureStyle(feature,
       activeLayer && activeLayer.feature === feature));
   }
+}
+
+function setMetricMobile(metric) {
+  document.getElementById("legend-select").value = metric;
+  changeMetric();
 }
 
 // ── Jump to ZIP ───────────────────────────────────────────────────────────────
