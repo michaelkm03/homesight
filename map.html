@@ -655,12 +655,8 @@
       /* Landing modal */
       #landing-modal { padding: 28px 20px 22px; }
 
-      /* iOS scroll fix — min-height:0 prevents flex child from blocking overflow */
-      #panel-charts {
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior-y: contain;
-        min-height: 0;
-      }
+      /* Charts removed on mobile — appreciation bars only */
+      #panel-charts { display: none; }
     }
 
     /* Suppress hover tooltip on touch devices */
@@ -1616,7 +1612,7 @@ function renderStats(configs, appreciation) {
       }).join("");
       if (window.innerWidth <= 640) {
         el.innerHTML += `
-          <div id="appr-section" class="chart-block">
+          <div id="appr-section" class="chart-block open">
             <div class="chart-toggle" onclick="this.parentElement.classList.toggle('open')">
               <span class="chart-label">Appreciation History</span>
               <span class="chart-arrow">▼</span>
@@ -1643,6 +1639,7 @@ const CHART_DEFS = [
 ];
 
 function renderCharts(configs, autoOpenLabel = null) {
+  if (window.innerWidth <= 640) return;
   const el = document.getElementById("panel-charts");
   el.innerHTML = "";
   let first = true;
@@ -2062,7 +2059,7 @@ async function openUKPanel(sector, heatmapData) {
       </div>`;
     }).join("");
     document.getElementById("panel-stats").innerHTML = window.innerWidth <= 640
-      ? `<div id="appr-section" class="chart-block">
+      ? `<div id="appr-section" class="chart-block open">
           <div class="chart-toggle" onclick="this.parentElement.classList.toggle('open')">
             <span class="chart-label">Appreciation History</span>
             <span class="chart-arrow">▼</span>
