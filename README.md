@@ -274,6 +274,21 @@ On any failure it publishes to SNS, which emails `michaelkm03@gmail.com`.
 
 ---
 
+## Social Media Automation
+
+Scripts for scheduling HomeSight content to Buffer live in `marketing/social/`. See [`marketing/social/README.md`](marketing/social/README.md) for full setup and workflow.
+
+**Quick start:**
+```bash
+export BUFFER_TOKEN="your-key"          # buffer.com/settings → API Keys
+python marketing/social/buffer_schedule.py --dry-run   # preview
+python marketing/social/buffer_schedule.py             # schedule
+```
+
+**Required:** Buffer Essentials plan ($6/mo per channel) — free plan caps at 10 queued posts per channel.
+
+---
+
 ## Project Structure
 
 ```
@@ -288,6 +303,15 @@ homesight/
 ├── MARKETING.md            # Channel-level marketing playbook
 ├── lambda/
 │   └── monitor.py          # AWS Lambda uptime monitor (deploy via AWS console)
+├── marketing/
+│   ├── crosspost.py        # Publish articles to Dev.to + Hashnode; GA4 stats
+│   ├── reddit_scout.py     # Scout Reddit for relevant housing threads
+│   ├── articles/           # Article configs + Markdown bodies
+│   └── social/
+│       ├── buffer_schedule.py       # Schedule posts to Buffer (Jul 6–19 campaign)
+│       ├── generate_post_images.py  # Per-post screenshots via Playwright → upload → patch
+│       ├── generate_og_concepts.py  # Generate candidate default OG images
+│       └── README.md                # Social automation setup + workflow
 ├── static/                 # Vendored JS/CSS — no CDN dependencies
 │   ├── leaflet.js
 │   ├── leaflet.css

@@ -24,6 +24,10 @@ build/
 .DS_Store
 Thumbs.db
 
+# Social media automation (generated files — do not commit)
+marketing/social/post_images/
+marketing/social/og_concepts/
+
 # Editor
 .vscode/settings.json
 .idea/
